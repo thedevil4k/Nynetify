@@ -1,0 +1,3 @@
+D:/YTfy/build/CMakeFiles/YTfy.dir
+D:/YTfy/build/CMakeFiles/edit_cache.dir
+D:/YTfy/build/CMakeFiles/rebuild_cache.dir
