@@ -1,7 +1,7 @@
 {
 	"InstallScripts" : 
 	[
-		"D:/YTfy/build/cmake_install.cmake"
+		"D:/Nynetify/build/cmake_install.cmake"
 	],
 	"Parallel" : false
 }

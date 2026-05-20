@@ -70,6 +70,12 @@ public:
         mpv_set_property(handle, "pause", MPV_FORMAT_FLAG, &pause_val);
     }
 
+    bool is_paused() {
+        int paused = 0;
+        mpv_get_property(handle, "pause", MPV_FORMAT_FLAG, &paused);
+        return paused != 0;
+    }
+
     double get_position() {
         double pos = 0;
         mpv_get_property(handle, "playback-time", MPV_FORMAT_DOUBLE, &pos);
@@ -155,8 +161,10 @@ public:
         return cache_time;
     }
 
-    // Call this to process events and logs
-    void update() {
+    // Call this to process events and logs.
+    // Returns: 0 = no event, 1 = EOF (track ended), 2 = error
+    int update() {
+        int status = 0;
         while (true) {
             mpv_event *event = mpv_wait_event(handle, 0);
             if (event->event_id == MPV_EVENT_NONE) break;
@@ -168,8 +176,17 @@ public:
                 std::cout << "[PLAYER] Start loading file..." << std::endl;
             } else if (event->event_id == MPV_EVENT_PLAYBACK_RESTART) {
                 std::cout << "[PLAYER] Playback started/restarted." << std::endl;
+            } else if (event->event_id == MPV_EVENT_END_FILE) {
+                auto *end_ev = (mpv_event_end_file *)event->data;
+                std::cout << "[PLAYER] Playback ended. Reason: " << end_ev->reason << std::endl;
+                if (end_ev->reason == MPV_END_FILE_REASON_EOF) {
+                    status = 1;
+                } else if (end_ev->reason == MPV_END_FILE_REASON_ERROR) {
+                    status = 2;
+                }
             }
         }
+        return status;
     }
 
 private:

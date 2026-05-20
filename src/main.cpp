@@ -2,35 +2,57 @@
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Input.H>
-#include <FL/Fl_Browser.H>
-#include <FL/Fl_Slider.H>
-#include <FL/Fl_Shared_Image.H>
-#include <FL/Fl_JPEG_Image.H>
-#include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Choice.H>
+#include <FL/Fl_Slider.H>
+#include <FL/Fl_Check_Button.H>
+#include <FL/Fl_JPEG_Image.H>
+#include <FL/Fl_Shared_Image.H>
+#include <FL/Fl_Browser.H>
 #include <FL/Fl_Hold_Browser.H>
 #include <FL/fl_ask.H>
+#include <FL/fl_draw.H>
+#include <FL/Fl_Menu_Item.H>
+#include <iostream>
+#include <string>
+#include <vector>
 #include <filesystem>
 #include <fstream>
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0600 // Vista or higher
-#endif
+#include <algorithm>
+#include <iomanip>
+#include <sstream>
+#include <ctime>
+
 #include <windows.h>
 #include <psapi.h>
 #include <iphlpapi.h>
-#include <time.h>
-#include <iomanip>
+
+#include "PlayerEngine.h"
 #include "Theme.h"
 #include "ModernButton.h"
-#include "YoutubeService.h"
-#include "PlayerEngine.h"
 #include "ProgressSlider.h"
 #include "PlaylistManager.h"
-#include <cstdint>
-#include <sstream> // Added for std::ostringstream
+#include "YoutubeService.h"
 
+// Forward Declarations
+void search_cb(Fl_Widget* w, void* data);
+void load_more_search_results();
+void refresh_current_view();
+void show_home_view();
+void show_search_view();
+void show_playlist_view(const std::string& playlist_name);
+void show_youtube_playlist_view(const std::string& playlist_id, const std::string& playlist_name, const std::string& uploader);
+void show_channel_view(const std::string& channel_id, const std::string& channel_name);
+void show_favorites_view();
+void load_sidebar_playlists();
+void update_cover_art(const std::string& video_id);
+void play_index(int index);
+void play_next();
+void play_prev();
+
+// Globals
 PlayerEngine* player = nullptr;
 std::vector<SearchResult> last_results;
+int total_loaded_results = 0;
 std::string user_region = "US"; // Default
 
 ProgressSlider* progressBar = nullptr;
@@ -38,31 +60,165 @@ Fl_Slider* volumeSlider = nullptr;
 Fl_Box* currentTimeBox = nullptr;
 Fl_Box* totalTimeBox = nullptr;
 Fl_Input* searchBar = nullptr;
+Fl_Choice* searchFilter = nullptr;
+Fl_Box* statusBar = nullptr;
+HANDLE self;
 
-// Forward declarations
-void search_cb(Fl_Widget* w, void* data);
-void category_cb(Fl_Widget* w, void* data);
-void refresh_current_view();
+// Spotify Clone Globals
+std::vector<SearchResult> play_queue;
+int current_queue_index = -1;
+bool is_shuffle = false;
+bool is_repeat = false;
 
 std::string current_category = "Top Hits";
 std::string current_playlist = ""; // To track if we're viewing a playlist
 
+// View Groups & Widgets
+Fl_Group* homeGroup = nullptr;
+Fl_Group* searchGroup = nullptr;
+Fl_Group* playlistGroup = nullptr;
+Fl_Hold_Browser* sidebarPlaylistList = nullptr;
+
+Fl_Box* playlistCoverBox = nullptr;
+Fl_Box* playlistNameBox = nullptr;
+Fl_Box* playlistDescBox = nullptr;
+ModernButton* playlistDeleteBtn = nullptr;
+Fl_Box* coverArtBox = nullptr;
+Fl_Box* nowPlayingBox = nullptr;
+Fl_Box* nowPlayingArtistBox = nullptr;
+Fl_Box* miniCoverArtBox = nullptr;
+
+Fl_JPEG_Image* currentImage = nullptr;
+Fl_JPEG_Image* miniCurrentImage = nullptr;
+
+// Custom Circular Button for Spotify Green Play/Pause
+class CircularButton : public Fl_Button {
+public:
+    CircularButton(int x, int y, int w, int h, const char* label = 0)
+        : Fl_Button(x, y, w, h, label) {
+        box(FL_NO_BOX);
+        color(Theme::ACCENT);
+        labelcolor(FL_BLACK);
+    }
+protected:
+    void draw() override {
+        bool is_below = (Fl::belowmouse() == this);
+        bool is_pushed = value() || (Fl::pushed() == this && is_below);
+
+        Fl_Color bg = color();
+        if (is_below) bg = fl_lighter(bg);
+        if (is_pushed) bg = fl_darker(bg);
+
+        // Draw filled circle
+        fl_color(bg);
+        fl_pie(x(), y(), w(), h(), 0, 360);
+
+        // Draw the play/pause icon in the middle
+        fl_color(labelcolor());
+        int cx = x() + w() / 2;
+        int cy = y() + h() / 2;
+        std::string lbl = label() ? label() : "";
+        if (lbl == "@>" || lbl == "PLAY" || lbl == "PAUSE" || lbl == "@||") {
+            if (player && !player->is_paused()) {
+                // Draw pause bars
+                fl_rectf(cx - 5, cy - 8, 3, 16);
+                fl_rectf(cx + 2, cy - 8, 3, 16);
+            } else {
+                // Draw a play triangle
+                int pts_x[3] = { cx - 5, cx - 5, cx + 8 };
+                int pts_y[3] = { cy - 8, cy + 8, cy };
+                fl_polygon(pts_x[0], pts_y[0], pts_x[1], pts_y[1], pts_x[2], pts_y[2]);
+            }
+        } else {
+            fl_font(labelfont(), labelsize());
+            fl_draw(label(), x(), y(), w(), h(), FL_ALIGN_CENTER, 0, 0);
+        }
+    }
+    int handle(int event) override {
+        int ret = Fl_Button::handle(event);
+        if (event == FL_ENTER || event == FL_LEAVE || event == FL_PUSH || event == FL_RELEASE) {
+            redraw();
+        }
+        return ret;
+    }
+};
+
+// Custom Heart Button for Favoriting
+class HeartButton : public Fl_Button {
+public:
+    bool active = false;
+    HeartButton(int x, int y, int w, int h) : Fl_Button(x, y, w, h, "") {
+        box(FL_NO_BOX);
+    }
+protected:
+    void draw() override {
+        bool is_below = (Fl::belowmouse() == this);
+        fl_color(active ? Theme::ACCENT : (is_below ? Theme::TEXT_PRIMARY : Theme::TEXT_SECONDARY));
+        fl_font(FL_HELVETICA, 20);
+        const char* symbol = active ? "\xe2\x99\xa5" : "\xe2\x99\xa1"; // filled vs empty heart
+        fl_draw(symbol, x(), y(), w(), h(), FL_ALIGN_CENTER, 0, 0);
+    }
+    int handle(int event) override {
+        int ret = Fl_Button::handle(event);
+        if (event == FL_ENTER || event == FL_LEAVE || event == FL_PUSH || event == FL_RELEASE) {
+            redraw();
+        }
+        return ret;
+    }
+};
+
+CircularButton* playBtn = nullptr;
+HeartButton* heartBtn = nullptr;
+
+// Settings structure
+struct AppSettings {
+    bool loadThumbnails = true;
+    bool showStatusBar = true;
+    int bufferSizeMB = 2;
+    int searchPageSize = 20;
+    int maxSearchResults = 200;
+} settings;
+
+// Helper to get time-based greeting
+std::string get_greeting() {
+    time_t rawtime;
+    struct tm * timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    int hour = timeinfo->tm_hour;
+    if (hour < 12) return "Good Morning";
+    else if (hour < 18) return "Good Afternoon";
+    else return "Good Evening";
+}
+
+// Modal Windows (Singletons)
+
+// Forward declarations for styled dialogs
+void show_styled_message(const char* msg);
+bool show_styled_choice(const char* msg);
+
 class CreatePlaylistWindow : public Fl_Double_Window {
     Fl_Input *nameIn, *commentIn;
 public:
+    void clear_inputs() {
+        if (nameIn) nameIn->value("");
+        if (commentIn) commentIn->value("");
+    }
+
     CreatePlaylistWindow() : Fl_Double_Window(300, 180, "New Playlist") {
         color(Theme::SIDEBAR);
-        nameIn = new Fl_Input(100, 20, 180, 25, "Name:");
+        nameIn = new Fl_Input(100, 25, 180, 25, "Name:");
         nameIn->textcolor(Theme::TEXT_PRIMARY);
         nameIn->color(Theme::HOVER);
-        nameIn->labelcolor(Theme::TEXT_PRIMARY);
+        nameIn->labelcolor(Theme::TEXT_SECONDARY);
 
-        commentIn = new Fl_Input(100, 55, 180, 25, "Comment:");
+        commentIn = new Fl_Input(100, 65, 180, 25, "Comment:");
         commentIn->textcolor(Theme::TEXT_PRIMARY);
         commentIn->color(Theme::HOVER);
-        commentIn->labelcolor(Theme::TEXT_PRIMARY);
+        commentIn->labelcolor(Theme::TEXT_SECONDARY);
 
-        ModernButton* btn = new ModernButton(100, 100, 100, 35, "CREATE");
+        ModernButton* btn = new ModernButton(100, 115, 100, 35, "CREATE");
+        btn->color(Theme::ACCENT);
         btn->callback(create_cb, this);
         end();
     }
@@ -74,6 +230,7 @@ public:
         if (!name.empty()) {
             PlaylistManager::create_playlist(name, comment);
             win->hide();
+            load_sidebar_playlists();
         }
     }
 };
@@ -92,7 +249,12 @@ public:
         list->add("FAVORITES");
         auto playlists = PlaylistManager::get_all_playlists();
         for (const auto& p : playlists) {
-            list->add(p.c_str());
+            // Strip .txt for UI
+            std::string name = p;
+            if (name.size() > 4 && name.substr(name.size() - 4) == ".txt") {
+                name = name.substr(0, name.size() - 4);
+            }
+            list->add(name.c_str());
         }
 
         ModernButton* btn = new ModernButton(100, 300, 100, 35, "ADD");
@@ -111,10 +273,71 @@ public:
                 PlaylistManager::add_to_playlist(choice, win->vid);
             }
             win->hide();
+            show_styled_message("Added to playlist!");
         }
     }
 };
 
+// Styled message dialogs
+void show_styled_message(const char* msg) {
+    Fl_Double_Window win(360, 120, "");
+    win.color(Theme::SIDEBAR);
+    win.set_modal();
+
+    Fl_Box text(20, 20, 320, 40, msg);
+    text.labelcolor(Theme::TEXT_PRIMARY);
+    text.box(FL_NO_BOX);
+    text.align(FL_ALIGN_CENTER | FL_ALIGN_INSIDE);
+
+    ModernButton* okBtn = new ModernButton(130, 75, 100, 30, "OK");
+    okBtn->color(Theme::ACCENT);
+    okBtn->labelcolor(FL_BLACK);
+    okBtn->callback([](Fl_Widget*, void* d) { ((Fl_Double_Window*)d)->hide(); }, &win);
+
+    win.end();
+    if (Fl::first_window()) {
+        win.position(Fl::first_window()->x() + (Fl::first_window()->w() - win.w()) / 2,
+                     Fl::first_window()->y() + (Fl::first_window()->h() - win.h()) / 2);
+    }
+    win.show();
+    while (win.shown()) Fl::wait();
+}
+
+bool show_styled_choice(const char* msg) {
+    bool result = false;
+    Fl_Double_Window win(360, 140, "");
+    win.color(Theme::SIDEBAR);
+    win.set_modal();
+
+    Fl_Box text(20, 20, 320, 50, msg);
+    text.labelcolor(Theme::TEXT_PRIMARY);
+    text.box(FL_NO_BOX);
+    text.align(FL_ALIGN_CENTER | FL_ALIGN_INSIDE);
+
+    ModernButton* yesBtn = new ModernButton(80, 90, 90, 30, "Yes");
+    yesBtn->color(Theme::ACCENT);
+    yesBtn->labelcolor(FL_BLACK);
+    yesBtn->callback([](Fl_Widget* w, void* d) {
+        *((bool*)d) = true;
+        w->window()->hide();
+    }, &result);
+
+    ModernButton* noBtn = new ModernButton(190, 90, 90, 30, "No");
+    noBtn->color(Theme::HOVER);
+    noBtn->labelcolor(Theme::TEXT_PRIMARY);
+    noBtn->callback([](Fl_Widget*, void* d) { ((Fl_Double_Window*)d)->hide(); }, &win);
+
+    win.end();
+    if (Fl::first_window()) {
+        win.position(Fl::first_window()->x() + (Fl::first_window()->w() - win.w()) / 2,
+                     Fl::first_window()->y() + (Fl::first_window()->h() - win.h()) / 2);
+    }
+    win.show();
+    while (win.shown()) Fl::wait();
+    return result;
+}
+
+// Main List Browser
 class ResultsBrowser : public Fl_Browser {
 public:
     ResultsBrowser(int x, int y, int w, int h, const char* l = 0) : Fl_Browser(x, y, w, h, l) {}
@@ -123,18 +346,32 @@ public:
         if (event == FL_PUSH) {
             int wx = Fl::event_x();
             int wy = Fl::event_y();
-            int line = value(); // value() is updated on PUSH if within list box
+            int line = value();
 
             if (Fl::event_button() == 1) { // Left Click
+                // Check if clicked on "Show more" line
+                if (current_category == "SEARCH" && total_loaded_results < (int)last_results.size() && line == total_loaded_results + 1) {
+                    load_more_search_results();
+                    return 1;
+                }
+                // Click on the heart icon or star column to open playlist adder
                 if (wx >= x() && wx < x() + 30) {
                     if (line > 0 && line <= (int)last_results.size()) {
+                        if (last_results[line - 1].is_playlist || last_results[line - 1].is_channel) return 0;
                         std::string video_id = last_results[line - 1].video_id;
                         if (video_id.find(".txt") == std::string::npos) {
-                            PlaylistSelectionWindow* win = new PlaylistSelectionWindow(video_id);
+                            static PlaylistSelectionWindow* win = nullptr;
+                            if (win) {
+                                win->hide();
+                                delete win;
+                            }
+                            win = new PlaylistSelectionWindow(video_id);
                             win->set_modal();
+                            if (Fl::first_window()) {
+                                win->position(Fl::first_window()->x() + (Fl::first_window()->w() - win->w())/2,
+                                              Fl::first_window()->y() + (Fl::first_window()->h() - win->h())/2);
+                            }
                             win->show();
-                            // Refresh star state might be needed after window closes, 
-                            // but for now we let the user re-search or re-load category.
                             return 1;
                         }
                     }
@@ -142,7 +379,7 @@ public:
             } else if (Fl::event_button() == 3) { // Right Click
                 if (line > 0 && line <= (int)last_results.size()) {
                     Fl_Menu_Item rclick_menu[] = {
-                        { "Delete", 0, delete_entry_cb, (void*)(intptr_t)line },
+                        { "Delete from Playlist", 0, delete_entry_cb, (void*)(intptr_t)line },
                         { 0 }
                     };
                     const Fl_Menu_Item* m = rclick_menu->popup(Fl::event_x(), Fl::event_y());
@@ -163,79 +400,15 @@ public:
                 PlaylistManager::remove_from_favorites(video_id);
             } else if (!current_playlist.empty()) {
                 PlaylistManager::remove_song_from_playlist(current_playlist, video_id);
-            } else if (current_category == "MY PLAYLISTS") {
-                // If we are looking at the list of playlists
-                PlaylistManager::delete_playlist(video_id); // In this view, video_id is filename
             }
-            // Trigger refresh
             refresh_current_view();
         }
     }
 };
 
 ResultsBrowser* resultsBrowser = nullptr;
-Fl_Browser* categoryBrowser = nullptr;
-Fl_Box* nowPlayingBox = nullptr;
-Fl_Choice* searchFilter = nullptr;
 
-struct AppSettings {
-    bool loadThumbnails = true;
-    bool showStatusBar = true;
-    int bufferSizeMB = 2;
-} settings;
-
-Fl_Box* coverArtBox = nullptr;
-Fl_JPEG_Image* currentImage = nullptr;
-
-// Status Bar Elements
-Fl_Box* statusBar = nullptr;
-HANDLE self;
-
-void detect_region() {
-    std::cout << "[UI] Detecting region..." << std::endl;
-    std::string temp_file = "region_temp.txt";
-    // Use ipapi.co for simple country code retrieval
-    std::string cmd = "curl -s -L -o " + temp_file + " https://ipapi.co/country/";
-    system(cmd.c_str());
-
-    if (std::filesystem::exists(temp_file)) {
-        std::ifstream ifs(temp_file);
-        std::string region;
-        if (ifs >> region && region.length() == 2) {
-            user_region = region;
-            std::cout << "[UI] Region detected: " << user_region << std::endl;
-        }
-        ifs.close();
-        std::filesystem::remove(temp_file);
-    }
-}
-
-std::vector<std::string> categories = {
-    "Classic Rock",
-    "Hip Hop",
-    "Flamenco",
-    "Electro Swing",
-    "Corrido Tumbado",
-    "Reggaetón",
-    "Pop",
-    "Synthwave",
-    "Electro House",
-    "Deep House",
-    "Progressive House",
-    "Drum & Bass",
-    "Breakbeat",
-    "Techno",
-    "Phonk",
-    "Rock",
-    "Lo-fi Beats",
-    "MIX",
-    "ASMR",
-    "Podcast",
-    "---",
-    "MY FAVORITES",
-    "MY PLAYLISTS"
-};
-
+// Time utilities
 std::string format_time(double seconds) {
     if (seconds < 0) seconds = 0;
     int m = (int)(seconds / 60);
@@ -246,9 +419,810 @@ std::string format_time(double seconds) {
     return oss.str();
 }
 
+// Queue Player Traversal Functions
+void play_index(int index) {
+    if (index >= 0 && index < (int)play_queue.size()) {
+        current_queue_index = index;
+        std::string video_id = play_queue[index].video_id;
+        std::string title = play_queue[index].title;
+        std::string author = play_queue[index].author;
+
+        std::cout << "[UI] Queue Play Index " << index << ": " << title << " (" << video_id << ")" << std::endl;
+        
+        // Match selection in browser if list matches
+        resultsBrowser->select(index + 1);
+
+        if (nowPlayingBox) {
+            std::string np = title;
+            if (np.size() > 24) np = np.substr(0, 21) + "...";
+            nowPlayingBox->copy_label(np.c_str());
+            nowPlayingBox->redraw();
+        }
+
+        if (nowPlayingArtistBox) {
+            std::string art = author;
+            if (art.size() > 28) art = art.substr(0, 25) + "...";
+            nowPlayingArtistBox->copy_label(art.c_str());
+            nowPlayingArtistBox->redraw();
+        }
+
+        if (heartBtn) {
+            heartBtn->active = PlaylistManager::is_favorite(video_id);
+            heartBtn->redraw();
+        }
+
+        update_cover_art(video_id);
+
+        std::string stream_url = YoutubeService::get_audio_url(video_id);
+        if (!stream_url.empty()) {
+            player->play(stream_url);
+            if (playBtn) {
+                playBtn->redraw();
+            }
+        } else {
+            std::cerr << "[ERROR] Could not get stream URL" << std::endl;
+        }
+    }
+}
+
+void play_next() {
+    if (play_queue.empty()) return;
+    if (is_repeat) {
+        play_index(current_queue_index);
+        return;
+    }
+    if (is_shuffle) {
+        int idx = rand() % play_queue.size();
+        play_index(idx);
+        return;
+    }
+    int next_idx = current_queue_index + 1;
+    if (next_idx >= (int)play_queue.size()) {
+        next_idx = 0; // wrap around
+    }
+    play_index(next_idx);
+}
+
+void play_prev() {
+    if (play_queue.empty()) return;
+    int prev_idx = current_queue_index - 1;
+    if (prev_idx < 0) {
+        prev_idx = (int)play_queue.size() - 1; // wrap around
+    }
+    play_index(prev_idx);
+}
+
+// Global player callbacks
+void play_selected_cb(Fl_Widget* w, void* data) {
+    Fl_Browser* browser = (Fl_Browser*)w;
+    int line = browser->value();
+    // Skip "Show more" special line
+    if (current_category == "SEARCH" && total_loaded_results < (int)last_results.size() && line == total_loaded_results + 1) {
+        return;
+    }
+    if (line > 0 && line <= (int)last_results.size()) {
+        // If not double-clicked and not triggered via button click, skip play
+        if (!Fl::event_clicks() && data == nullptr) {
+            return;
+        }
+
+        std::string video_id = last_results[line - 1].video_id;
+        std::string title = last_results[line - 1].title;
+
+        // If it's a YouTube playlist, open playlist view
+        if (last_results[line - 1].is_playlist) {
+            std::string author = last_results[line - 1].author;
+            show_youtube_playlist_view(video_id, title, author);
+            return;
+        }
+
+        // If it's a YouTube channel, open channel view
+        if (last_results[line - 1].is_channel) {
+            show_channel_view(video_id, title);
+            return;
+        }
+
+        // If it's a local playlist reference (ends in .txt), switch to playlist view
+        if (video_id.find(".txt") != std::string::npos) {
+            std::string name = video_id;
+            if (name.size() > 4 && name.substr(name.size() - 4) == ".txt") {
+                name = name.substr(0, name.size() - 4);
+            }
+            show_playlist_view(name);
+            return;
+        }
+
+        play_queue = last_results;
+        current_queue_index = line - 1;
+        play_index(current_queue_index);
+    }
+}
+
+void play_btn_cb(Fl_Widget* w, void* data) {
+    if (player) {
+        if (player->is_paused()) {
+            player->resume();
+            w->redraw();
+        } else {
+            // Check if anything is currently loaded
+            if (current_queue_index >= 0) {
+                player->pause();
+                w->redraw();
+            } else {
+                // If nothing playing, play first song in browser if selected
+                int line = resultsBrowser->value();
+                if (line > 0 && line <= (int)last_results.size()) {
+                    play_selected_cb(resultsBrowser, (void*)1);
+                } else if (!last_results.empty()) {
+                    play_queue = last_results;
+                    current_queue_index = 0;
+                    play_index(0);
+                }
+            }
+        }
+    }
+}
+
+void pause_resume_cb(Fl_Widget* w, void* data) {
+    if (player) {
+        if (player->is_paused()) {
+            player->resume();
+        } else {
+            player->pause();
+        }
+        if (playBtn) playBtn->redraw();
+    }
+}
+
+void seek_cb(Fl_Widget* w, void* data) {
+    if (player) {
+        player->set_position(progressBar->value());
+    }
+}
+
+void volume_cb(Fl_Widget* w, void* data) {
+    if (player) {
+        player->set_volume(volumeSlider->value());
+    }
+}
+
+void shuffle_cb(Fl_Widget* w, void* data) {
+    is_shuffle = !is_shuffle;
+    w->selection_color(is_shuffle ? Theme::ACCENT : Theme::HOVER);
+    w->labelcolor(is_shuffle ? Theme::ACCENT : Theme::TEXT_SECONDARY);
+    w->redraw();
+}
+
+void repeat_cb(Fl_Widget* w, void* data) {
+    is_repeat = !is_repeat;
+    w->selection_color(is_repeat ? Theme::ACCENT : Theme::HOVER);
+    w->labelcolor(is_repeat ? Theme::ACCENT : Theme::TEXT_SECONDARY);
+    w->redraw();
+}
+
+void heart_btn_cb(Fl_Widget* w, void* data) {
+    if (current_queue_index >= 0 && current_queue_index < (int)play_queue.size()) {
+        std::string video_id = play_queue[current_queue_index].video_id;
+        if (PlaylistManager::is_favorite(video_id)) {
+            PlaylistManager::remove_from_favorites(video_id);
+            heartBtn->active = false;
+        } else {
+            PlaylistManager::add_to_favorites(video_id);
+            heartBtn->active = true;
+        }
+        heartBtn->redraw();
+        if (current_category == "MY FAVORITES") {
+            refresh_current_view();
+        }
+    }
+}
+
+// Category cards clicking on home
+void category_card_cb(Fl_Widget* w, void* data) {
+    std::string cat = (const char*)data;
+    if (cat == "Liked Songs") {
+        show_favorites_view();
+    } else {
+        show_search_view();
+        if (searchBar) {
+            searchBar->value(cat.c_str());
+            search_cb(searchBar, resultsBrowser);
+        }
+    }
+}
+
+// Dynamic refresh logic
+void refresh_current_view() {
+    if (current_category == "MY FAVORITES") {
+        show_favorites_view();
+    } else if (!current_playlist.empty()) {
+        std::string name = current_playlist;
+        if (name.size() > 4 && name.substr(name.size() - 4) == ".txt") {
+            name = name.substr(0, name.size() - 4);
+        }
+        show_playlist_view(name);
+    }
+}
+
+// Search execution
+void search_cb(Fl_Widget* w, void* data) {
+    current_category = "SEARCH";
+    current_playlist = "";
+    Fl_Input* input = (Fl_Input*)w;
+    Fl_Browser* browser = (Fl_Browser*)data;
+    browser->clear();
+
+    std::string query = input->value();
+    if (query.empty()) return;
+
+    std::cout << "[UI] Searching for: " << query << "..." << std::endl;
+
+    try {
+        int filter = 0;
+        if (searchFilter) filter = searchFilter->value();
+
+        last_results = YoutubeService::search(query, user_region, filter, settings.maxSearchResults);
+        std::cout << "[UI] Found " << last_results.size() << " results." << std::endl;
+
+        total_loaded_results = 0;
+        browser->clear();
+
+        int to_show = std::min(settings.searchPageSize, (int)last_results.size());
+        for (int i = 0; i < to_show; i++) {
+            const auto& res = last_results[i];
+            if (res.is_channel) {
+                browser->add((std::string("@C255\x40\t") + res.title + "\t" + res.author).c_str());
+            } else if (res.is_playlist) {
+                browser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
+            } else {
+                bool is_fav = PlaylistManager::is_favorite(res.video_id);
+                std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
+                browser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+            }
+        }
+        total_loaded_results = to_show;
+
+        int remaining = (int)last_results.size() - total_loaded_results;
+        if (remaining > 0) {
+            std::string more = "@C150\xe2\x96\xb8  Show more (" + std::to_string(remaining) + " remaining)";
+            browser->add(more.c_str());
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[ERROR] Search failed: " << e.what() << std::endl;
+        browser->add("Error: Search failed. Check console for details.");
+    }
+}
+
+void load_more_search_results() {
+    Fl_Browser* browser = resultsBrowser;
+    if (!browser) return;
+
+    int remaining_total = (int)last_results.size() - total_loaded_results;
+    if (remaining_total <= 0) return;
+
+    // Remove the "Show more" line
+    int last_line = browser->size();
+    if (last_line > 0) browser->remove(last_line);
+
+    int to_add = std::min(settings.searchPageSize, remaining_total);
+    for (int i = total_loaded_results; i < total_loaded_results + to_add; i++) {
+        const auto& res = last_results[i];
+        if (res.is_channel) {
+            browser->add((std::string("@C255\x40\t") + res.title + "\t" + res.author).c_str());
+        } else if (res.is_playlist) {
+            browser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
+        } else {
+            bool is_fav = PlaylistManager::is_favorite(res.video_id);
+            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
+            browser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+        }
+    }
+    total_loaded_results += to_add;
+
+    int remaining = (int)last_results.size() - total_loaded_results;
+    if (remaining > 0) {
+        std::string more = "@C150\xe2\x96\xb8  Show more (" + std::to_string(remaining) + " remaining)";
+        browser->add(more.c_str());
+    }
+    browser->redraw();
+}
+
+// Sidebar Playlist Callback
+void sidebar_playlist_cb(Fl_Widget* w, void* data) {
+    int val = sidebarPlaylistList->value();
+    if (val > 0) {
+        std::string playlist_name = sidebarPlaylistList->text(val);
+        show_playlist_view(playlist_name);
+    }
+}
+
+// Sidebar loader
+void load_sidebar_playlists() {
+    if (!sidebarPlaylistList) return;
+    sidebarPlaylistList->clear();
+    auto lists = PlaylistManager::get_all_playlists();
+    for (const auto& list : lists) {
+        std::string name = list;
+        if (name.size() > 4 && name.substr(name.size() - 4) == ".txt") {
+            name = name.substr(0, name.size() - 4);
+        }
+        sidebarPlaylistList->add(name.c_str());
+    }
+    sidebarPlaylistList->redraw();
+}
+
+// Equalizer sliders callback
+void eq_slider_cb(Fl_Widget* w, void* data) {
+    intptr_t band = (intptr_t)data;
+    Fl_Slider* slider = (Fl_Slider*)w;
+    if (player) {
+        player->set_eq_gain((int)band, slider->value());
+    }
+}
+
+void eq_toggle_cb(Fl_Widget* w, void* data) {
+    Fl_Check_Button* check = (Fl_Check_Button*)w;
+    if (player) {
+        player->set_eq_enabled(check->value());
+    }
+}
+
+static Fl_Double_Window* eqWin = nullptr;
+void open_eq_window_cb(Fl_Widget* w, void* data) {
+    if (eqWin) {
+        eqWin->show();
+        return;
+    }
+    eqWin = new Fl_Double_Window(500, 320, "Equalizer (10 Bands)");
+    eqWin->color(Theme::SIDEBAR);
+    
+    if (Fl::first_window()) {
+        eqWin->position(Fl::first_window()->x() + (Fl::first_window()->w() - eqWin->w())/2,
+                        Fl::first_window()->y() + (Fl::first_window()->h() - eqWin->h())/2);
+    }
+    
+    Fl_Check_Button* eqToggle = new Fl_Check_Button(20, 10, 120, 25, " ENABLE EQ");
+    eqToggle->labelcolor(Theme::TEXT_PRIMARY);
+    eqToggle->callback(eq_toggle_cb);
+    if (player) eqToggle->value(player->is_eq_enabled() ? 1 : 0);
+
+    Fl_Box* topDb = new Fl_Box(465, 45, 30, 20, "+12");
+    topDb->labelcolor(Theme::TEXT_SECONDARY);
+    topDb->labelsize(10);
+
+    Fl_Box* midDb = new Fl_Box(465, 137, 30, 20, "0");
+    midDb->labelcolor(Theme::TEXT_SECONDARY);
+    midDb->labelsize(10);
+
+    Fl_Box* botDb = new Fl_Box(465, 230, 30, 20, "-12");
+    botDb->labelcolor(Theme::TEXT_SECONDARY);
+    botDb->labelsize(10);
+
+    const char* labels[] = {"31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"};
+    
+    for (int i = 0; i < 10; ++i) {
+        Fl_Slider* s = new Fl_Slider(20 + i * 45, 50, 25, 200, labels[i]);
+        s->type(FL_VERT_SLIDER);
+        s->bounds(12, -12);
+        s->value(0);
+        s->color(Theme::HOVER);
+        s->selection_color(Theme::ACCENT);
+        s->callback(eq_slider_cb, (void*)(intptr_t)i);
+        s->labelsize(10);
+        s->labelcolor(Theme::TEXT_PRIMARY);
+    }
+    
+    eqWin->end();
+    eqWin->set_non_modal();
+    eqWin->show();
+}
+
+// Preferences Callbacks
+void prefs_toggle_cb(Fl_Widget* w, void* data) {
+    Fl_Check_Button* btn = (Fl_Check_Button*)w;
+    settings.loadThumbnails = btn->value();
+}
+
+void status_toggle_cb(Fl_Widget* w, void* data) {
+    Fl_Check_Button* btn = (Fl_Check_Button*)w;
+    settings.showStatusBar = btn->value();
+    if (statusBar) {
+        if (settings.showStatusBar) statusBar->show();
+        else statusBar->hide();
+    }
+}
+
+void buffer_cb(Fl_Widget* w, void* data) {
+    Fl_Slider* slider = (Fl_Slider*)w;
+    Fl_Box* label = (Fl_Box*)data;
+    settings.bufferSizeMB = (int)slider->value();
+    
+    char buf[64];
+    snprintf(buf, sizeof(buf), "Max Buffer Size: %d MB", settings.bufferSizeMB);
+    label->copy_label(buf);
+    label->redraw();
+
+    if (player) {
+        player->set_buffer_size(settings.bufferSizeMB);
+    }
+}
+
+void search_page_cb(Fl_Widget* w, void* data) {
+    Fl_Slider* slider = (Fl_Slider*)w;
+    Fl_Box* label = (Fl_Box*)data;
+    settings.searchPageSize = (int)slider->value();
+    char buf[64];
+    snprintf(buf, sizeof(buf), "Page size: %d results", settings.searchPageSize);
+    label->copy_label(buf);
+    label->redraw();
+}
+
+void max_results_cb(Fl_Widget* w, void* data) {
+    Fl_Slider* slider = (Fl_Slider*)w;
+    Fl_Box* label = (Fl_Box*)data;
+    settings.maxSearchResults = (int)slider->value();
+    char buf[64];
+    snprintf(buf, sizeof(buf), "Max results: %d", settings.maxSearchResults);
+    label->copy_label(buf);
+    label->redraw();
+}
+
+static Fl_Double_Window* prefWin = nullptr;
+void open_prefs_window_cb(Fl_Widget* w, void* data) {
+    if (prefWin) {
+        prefWin->show();
+        return;
+    }
+    prefWin = new Fl_Double_Window(300, 370, "Settings");
+    prefWin->color(Theme::SIDEBAR);
+
+    if (Fl::first_window()) {
+        prefWin->position(Fl::first_window()->x() + (Fl::first_window()->w() - prefWin->w())/2,
+                          Fl::first_window()->y() + (Fl::first_window()->h() - prefWin->h())/2);
+    }
+    
+    Fl_Check_Button* thumbToggle = new Fl_Check_Button(20, 20, 260, 30, " Load Thumbnails");
+    thumbToggle->labelcolor(Theme::TEXT_PRIMARY);
+    thumbToggle->value(settings.loadThumbnails ? 1 : 0);
+    thumbToggle->callback(prefs_toggle_cb);
+
+    Fl_Check_Button* statusToggle = new Fl_Check_Button(20, 60, 260, 30, " Show Status Bar");
+    statusToggle->labelcolor(Theme::TEXT_PRIMARY);
+    statusToggle->value(settings.showStatusBar ? 1 : 0);
+    statusToggle->callback(status_toggle_cb);
+
+    Fl_Box* bufLabel = new Fl_Box(20, 110, 260, 20);
+    bufLabel->labelcolor(Theme::TEXT_SECONDARY);
+    bufLabel->labelsize(12);
+    bufLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    char initBuf[64];
+    snprintf(initBuf, sizeof(initBuf), "Max Buffer Size: %d MB", settings.bufferSizeMB);
+    bufLabel->copy_label(initBuf);
+
+    Fl_Slider* bufSlider = new Fl_Slider(20, 135, 260, 20);
+    bufSlider->type(FL_HOR_SLIDER);
+    bufSlider->bounds(1, 100);
+    bufSlider->step(1);
+    bufSlider->value(settings.bufferSizeMB);
+    bufSlider->color(Theme::HOVER);
+    bufSlider->selection_color(Theme::ACCENT);
+    bufSlider->callback(buffer_cb, (void*)bufLabel);
+
+    // Search page size
+    Fl_Box* pageLabel = new Fl_Box(20, 175, 260, 20);
+    pageLabel->labelcolor(Theme::TEXT_SECONDARY);
+    pageLabel->labelsize(12);
+    pageLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    snprintf(initBuf, sizeof(initBuf), "Page size: %d results", settings.searchPageSize);
+    pageLabel->copy_label(initBuf);
+
+    Fl_Slider* pageSlider = new Fl_Slider(20, 200, 260, 20);
+    pageSlider->type(FL_HOR_SLIDER);
+    pageSlider->bounds(5, 100);
+    pageSlider->step(5);
+    pageSlider->value(settings.searchPageSize);
+    pageSlider->color(Theme::HOVER);
+    pageSlider->selection_color(Theme::ACCENT);
+    pageSlider->callback(search_page_cb, (void*)pageLabel);
+
+    // Max search results
+    Fl_Box* maxLabel = new Fl_Box(20, 240, 260, 20);
+    maxLabel->labelcolor(Theme::TEXT_SECONDARY);
+    maxLabel->labelsize(12);
+    maxLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    snprintf(initBuf, sizeof(initBuf), "Max results: %d", settings.maxSearchResults);
+    maxLabel->copy_label(initBuf);
+
+    Fl_Slider* maxSlider = new Fl_Slider(20, 265, 260, 20);
+    maxSlider->type(FL_HOR_SLIDER);
+    maxSlider->bounds(20, 500);
+    maxSlider->step(10);
+    maxSlider->value(settings.maxSearchResults);
+    maxSlider->color(Theme::HOVER);
+    maxSlider->selection_color(Theme::ACCENT);
+    maxSlider->callback(max_results_cb, (void*)maxLabel);
+
+    prefWin->end();
+    prefWin->set_non_modal();
+    prefWin->show();
+}
+
+// Cover Art Image Loader
+void update_cover_art(const std::string& video_id) {
+    if (!settings.loadThumbnails) return;
+
+    std::string url = YoutubeService::get_thumbnail_url(video_id);
+    std::string temp_file = "cover_temp.jpg";
+    
+    // Download using curl
+    std::string cmd = "curl -s -L -o " + temp_file + " " + url;
+    system(cmd.c_str());
+
+    if (std::filesystem::exists(temp_file)) {
+        // Large cover (Home view)
+        if (coverArtBox) {
+            if (currentImage) delete currentImage;
+            currentImage = new Fl_JPEG_Image(temp_file.c_str());
+            if (currentImage && currentImage->w() > 0) {
+                int bw = coverArtBox->w();
+                int bh = coverArtBox->h();
+                Fl_Image* scaled = currentImage->copy(bw, bh);
+                coverArtBox->image(scaled);
+                coverArtBox->redraw();
+            }
+        }
+        
+        // Mini cover (Player bar)
+        if (miniCoverArtBox) {
+            if (miniCurrentImage) delete miniCurrentImage;
+            miniCurrentImage = new Fl_JPEG_Image(temp_file.c_str());
+            if (miniCurrentImage && miniCurrentImage->w() > 0) {
+                int bw = miniCoverArtBox->w();
+                int bh = miniCoverArtBox->h();
+                Fl_Image* scaled = miniCurrentImage->copy(bw, bh);
+                miniCoverArtBox->image(scaled);
+                miniCoverArtBox->redraw();
+            }
+        }
+    }
+}
+
+// View-switching Functions
+void show_home_view() {
+    homeGroup->show();
+    searchGroup->hide();
+    playlistGroup->hide();
+    resultsBrowser->hide();
+    if (sidebarPlaylistList) sidebarPlaylistList->value(0);
+}
+
+void show_search_view() {
+    homeGroup->hide();
+    searchGroup->show();
+    playlistGroup->hide();
+    
+    resultsBrowser->position(220, 70);
+    resultsBrowser->size(760, 570);
+    resultsBrowser->show();
+    if (sidebarPlaylistList) sidebarPlaylistList->value(0);
+}
+
+void show_playlist_view(const std::string& playlist_name) {
+    homeGroup->hide();
+    searchGroup->hide();
+    playlistGroup->show();
+    
+    resultsBrowser->position(220, 220);
+    resultsBrowser->size(760, 420);
+    resultsBrowser->show();
+    
+    playlistNameBox->copy_label(playlist_name.c_str());
+    
+    std::string comment = PlaylistManager::get_playlist_comment(playlist_name + ".txt");
+    if (comment.empty()) {
+        comment = "A custom playlist created in Nynetify.";
+    }
+    playlistDescBox->copy_label(comment.c_str());
+    
+    // Set current active playlist name
+    current_playlist = playlist_name + ".txt";
+    current_category = "MY PLAYLISTS";
+
+    // Show delete button for local playlists
+    playlistDeleteBtn->show();
+
+    // Load songs
+    resultsBrowser->clear();
+    resultsBrowser->add("Loading playlist tracks...");
+    resultsBrowser->redraw();
+    Fl::check();
+
+    auto ids = PlaylistManager::get_playlist_songs(current_playlist);
+    last_results = YoutubeService::get_metadata(ids);
+    resultsBrowser->clear();
+    if (last_results.empty()) {
+        resultsBrowser->add("No tracks in this playlist.");
+    } else {
+        for (const auto& res : last_results) {
+            bool is_fav = PlaylistManager::is_favorite(res.video_id);
+            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
+            resultsBrowser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+        }
+    }
+    resultsBrowser->redraw();
+}
+
+void show_favorites_view() {
+    homeGroup->hide();
+    searchGroup->hide();
+    playlistGroup->show();
+    
+    resultsBrowser->position(220, 220);
+    resultsBrowser->size(760, 420);
+    resultsBrowser->show();
+    
+    playlistNameBox->copy_label("Liked Songs");
+    playlistDescBox->copy_label("Your personal favorite tracks.");
+    
+    current_playlist = "";
+    current_category = "MY FAVORITES";
+
+    // Hide delete button for favorites
+    playlistDeleteBtn->hide();
+
+    resultsBrowser->clear();
+    resultsBrowser->add("Loading favorites...");
+    resultsBrowser->redraw();
+    Fl::check();
+
+    auto items = PlaylistManager::get_favorites();
+    std::vector<std::string> ids;
+    for (const auto& item : items) {
+        if (!item.is_playlist) ids.push_back(item.value);
+    }
+    
+    last_results.clear();
+    if (!ids.empty()) {
+        last_results = YoutubeService::get_metadata(ids);
+        resultsBrowser->clear();
+        for (const auto& res : last_results) {
+            resultsBrowser->add(("@C7\xe2\x98\x85\t" + res.title + "\t" + res.author).c_str());
+        }
+    } else {
+        resultsBrowser->clear();
+        resultsBrowser->add("No liked songs found.");
+    }
+    resultsBrowser->redraw();
+}
+
+// YouTube Playlist View
+void show_youtube_playlist_view(const std::string& playlist_id, const std::string& playlist_name, const std::string& uploader) {
+    homeGroup->hide();
+    searchGroup->hide();
+    playlistGroup->show();
+
+    resultsBrowser->position(220, 220);
+    resultsBrowser->size(760, 420);
+    resultsBrowser->show();
+
+    playlistNameBox->copy_label(playlist_name.c_str());
+    std::string desc = "YouTube Playlist by " + uploader;
+    playlistDescBox->copy_label(desc.c_str());
+
+    playlistDeleteBtn->hide();
+
+    current_playlist = "";
+    current_category = "YOUTUBE_PLAYLIST";
+
+    resultsBrowser->clear();
+    resultsBrowser->add("Loading YouTube playlist tracks...");
+    resultsBrowser->redraw();
+    Fl::check();
+
+    last_results = YoutubeService::get_playlist_videos(playlist_id);
+    resultsBrowser->clear();
+    if (last_results.empty()) {
+        resultsBrowser->add("No tracks found in this playlist.");
+    } else {
+        for (const auto& res : last_results) {
+            bool is_fav = PlaylistManager::is_favorite(res.video_id);
+            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
+            resultsBrowser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+        }
+    }
+    resultsBrowser->redraw();
+}
+
+// Channel View
+void show_channel_view(const std::string& channel_id, const std::string& channel_name) {
+    homeGroup->hide();
+    searchGroup->hide();
+    playlistGroup->show();
+
+    resultsBrowser->position(220, 220);
+    resultsBrowser->size(760, 420);
+    resultsBrowser->show();
+
+    playlistNameBox->copy_label(channel_name.c_str());
+    std::string desc = "YouTube Channel";
+    playlistDescBox->copy_label(desc.c_str());
+
+    playlistDeleteBtn->hide();
+
+    current_playlist = "";
+    current_category = "CHANNEL";
+
+    resultsBrowser->clear();
+    resultsBrowser->add("Loading channel content...");
+    resultsBrowser->redraw();
+    Fl::check();
+
+    last_results = YoutubeService::get_channel_content(channel_id, channel_name);
+
+    // Load channel avatar
+    std::string avatar_url = YoutubeService::get_channel_avatar_url(channel_id);
+    if (!avatar_url.empty()) {
+        std::string temp_file = "cover_temp.jpg";
+        std::string dl_cmd = "curl -s -L -o " + temp_file + " \"" + avatar_url + "\"";
+        system(dl_cmd.c_str());
+        if (std::filesystem::exists(temp_file)) {
+            if (playlistCoverBox) {
+                Fl_JPEG_Image* img = new Fl_JPEG_Image(temp_file.c_str());
+                if (img && img->w() > 0) {
+                    int bw = playlistCoverBox->w();
+                    int bh = playlistCoverBox->h();
+                    Fl_Image* scaled = img->copy(bw, bh);
+                    playlistCoverBox->image(scaled);
+                    playlistCoverBox->redraw();
+                }
+                delete img;
+            }
+            std::filesystem::remove(temp_file);
+        }
+    }
+
+    resultsBrowser->clear();
+    if (last_results.empty()) {
+        resultsBrowser->add("No content found for this channel.");
+    } else {
+        // Show separator header for playlists
+        bool has_playlists = false;
+        for (const auto& res : last_results) {
+            if (res.is_playlist) {
+                if (!has_playlists) {
+                    resultsBrowser->add("@C7\xe2\x96\xb6 Playlists");
+                    has_playlists = true;
+                }
+                resultsBrowser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
+            }
+        }
+        // Show separator header for videos
+        bool has_videos = false;
+        for (const auto& res : last_results) {
+            if (!res.is_playlist) {
+                if (!has_videos) {
+                    if (has_playlists) resultsBrowser->add("");
+                    resultsBrowser->add("@C7\xe2\x99\xab Videos");
+                    has_videos = true;
+                }
+                bool is_fav = PlaylistManager::is_favorite(res.video_id);
+                std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
+                resultsBrowser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+            }
+        }
+    }
+    resultsBrowser->redraw();
+}
+
+// Timer loops
 void update_ui_cb(void* data) {
     if (player && progressBar) {
-        player->update(); // Process MPV events
+        // Run MPV event loop and check for EOF
+        int ev = player->update();
+        if (ev == 1) { // EOF reached
+            play_next();
+        }
+
         double pos = player->get_position();
         double dur = player->get_duration();
         
@@ -278,371 +1252,18 @@ void update_ui_cb(void* data) {
             }
         }
     }
-    Fl::repeat_timeout(0.2, update_ui_cb); // Increased frequency for smoother progress bar
-}
-
-void update_cover_art(const std::string& video_id) {
-    if (!settings.loadThumbnails || !coverArtBox) return;
-
-    std::string url = YoutubeService::get_thumbnail_url(video_id);
-    std::string temp_file = "cover_temp.jpg";
-    
-    // Simple download using curl (standard on Win10+)
-    std::string cmd = "curl -s -L -o " + temp_file + " " + url;
-    system(cmd.c_str());
-
-    if (std::filesystem::exists(temp_file)) {
-        if (currentImage) delete currentImage;
-        currentImage = new Fl_JPEG_Image(temp_file.c_str());
-        if (currentImage && currentImage->w() > 0) {
-            // Scale image to fit box while maintaining aspect ratio
-            int bw = coverArtBox->w();
-            int bh = coverArtBox->h();
-            Fl_Image* scaled = currentImage->copy(bw, bh);
-            coverArtBox->image(scaled);
-            coverArtBox->redraw();
-        }
-    }
-}
-
-void seek_cb(Fl_Widget* w, void* data) {
-    if (player) {
-        player->set_position(progressBar->value());
-    }
-}
-
-void volume_cb(Fl_Widget* w, void* data) {
-    if (player) {
-        player->set_volume(volumeSlider->value());
-    }
-}
-
-void play_selected_cb(Fl_Widget* w, void* data) {
-    Fl_Browser* browser = (Fl_Browser*)w;
-    int line = browser->value();
-    if (line > 0 && line <= (int)last_results.size()) {
-        std::string video_id = last_results[line - 1].video_id;
-        std::string title = last_results[line - 1].title;
-
-        // Check if it's a playlist reference (ends in .txt and it's from PLAYLIST categoriy)
-        if (video_id.find(".txt") != std::string::npos) {
-            browser->clear();
-            browser->add("Loading playlist metadata...");
-            browser->redraw();
-            Fl::check();
-
-            current_playlist = video_id; // Store current filename
-            auto ids = PlaylistManager::get_playlist_songs(video_id);
-            last_results = YoutubeService::get_metadata(ids);
-            browser->clear();
-            for (const auto& res : last_results) {
-                bool is_fav = PlaylistManager::is_favorite(res.video_id);
-                std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-                browser->add((star + "\t" + res.title + "\t" + res.author).c_str());
-            }
-            return;
-        }
-        current_playlist = "";
-
-        std::cout << "[UI] Selected: " << title << " (" << video_id << ")" << std::endl;
-        
-        if (nowPlayingBox) {
-            std::string np = title + " - " + last_results[line - 1].author;
-            nowPlayingBox->copy_label(np.c_str());
-            nowPlayingBox->redraw();
-        }
-
-        std::string stream_url = YoutubeService::get_audio_url(video_id);
-        if (!stream_url.empty()) {
-            player->play(stream_url);
-            update_cover_art(video_id);
-        } else {
-            std::cerr << "[ERROR] Could not get stream URL" << std::endl;
-        }
-    }
-}
-
-void play_btn_cb(Fl_Widget* w, void* data) {
-    Fl_Browser* browser = (Fl_Browser*)data;
-    play_selected_cb(browser, nullptr);
-}
-
-void add_to_favs_cb(Fl_Widget* w, void* data) {
-    if (!resultsBrowser) return;
-    int line = resultsBrowser->value();
-    if (line > 0 && line <= (int)last_results.size()) {
-        std::string video_id = last_results[line - 1].video_id;
-        PlaylistManager::add_to_favorites(video_id);
-        std::cout << "[UI] Added to Favorites: " << video_id << std::endl;
-        fl_message("Added to Favorites!");
-    } else {
-        fl_message("Please select a song first.");
-    }
-}
-
-void refresh_current_view() {
-    if (current_category == "MY FAVORITES") {
-        category_cb(categoryBrowser, nullptr); // Re-trigger category selection
-    } else if (!current_playlist.empty()) {
-        // Special case for playlist content
-        resultsBrowser->clear();
-        resultsBrowser->add("Refreshing...");
-        resultsBrowser->redraw();
-        Fl::check();
-
-        auto ids = PlaylistManager::get_playlist_songs(current_playlist);
-        last_results = YoutubeService::get_metadata(ids);
-        resultsBrowser->clear();
-        for (const auto& res : last_results) {
-            bool is_fav = PlaylistManager::is_favorite(res.video_id);
-            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-            resultsBrowser->add((star + "\t" + res.title + "\t" + res.author).c_str());
-        }
-    } else if (current_category == "MY PLAYLISTS") {
-        category_cb(categoryBrowser, nullptr);
-    } else {
-        search_cb(searchBar, resultsBrowser);
-    }
-}
-
-void search_cb(Fl_Widget* w, void* data) {
-    current_category = "SEARCH";
-    current_playlist = "";
-    Fl_Input* input = (Fl_Input*)w;
-    Fl_Browser* browser = (Fl_Browser*)data;
-    browser->clear();
-    
-    std::string query = input->value();
-    if (query.empty()) return;
-
-    std::cout << "[UI] Searching for: " << query << "..." << std::endl;
-    
-    try {
-        int filter = 0;
-        if (searchFilter) filter = searchFilter->value();
-
-        last_results = YoutubeService::search(query, user_region, filter);
-        std::cout << "[UI] Found " << last_results.size() << " results." << std::endl;
-        
-        for (const auto& res : last_results) {
-            bool is_fav = PlaylistManager::is_favorite(res.video_id);
-            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-            std::string line_item = star + "\t" + res.title + "\t" + res.author;
-            browser->add(line_item.c_str());
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Search failed: " << e.what() << std::endl;
-        browser->add("Error: Search failed. Check console for details.");
-    }
-}
-
-void category_cb(Fl_Widget* w, void* data) {
-    Fl_Browser* cb = (Fl_Browser*)w;
-    int line = cb->value();
-    if (line > 0 && line <= (int)categories.size()) {
-        std::string cat = categories[line - 1];
-        if (cat == "---") return;
-        current_category = cat;
-        current_playlist = "";
-        
-        if (cat == "MY FAVORITES") {
-            resultsBrowser->clear();
-            resultsBrowser->add("Loading metadata... Please wait.");
-            resultsBrowser->redraw();
-            Fl::check(); // Process events to show the loading message
-
-            last_results.clear();
-            auto items = PlaylistManager::get_favorites();
-            std::vector<std::string> ids;
-            for (const auto& item : items) {
-                if (!item.is_playlist) ids.push_back(item.value);
-            }
-
-            if (!ids.empty()) {
-                last_results = YoutubeService::get_metadata(ids);
-                resultsBrowser->clear();
-                for (const auto& res : last_results) {
-                    bool is_fav = PlaylistManager::is_favorite(res.video_id);
-                    std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-                    std::string line_item = star + "\t" + res.title + "\t" + res.author;
-                    resultsBrowser->add(line_item.c_str());
-                }
-            } else {
-                resultsBrowser->clear();
-                resultsBrowser->add("No favorites found.");
-            }
-            return;
-        }
-
-        if (cat == "MY PLAYLISTS") {
-            resultsBrowser->clear();
-            last_results.clear();
-            auto lists = PlaylistManager::get_all_playlists();
-            if (lists.empty()) {
-                resultsBrowser->add("No playlists found.");
-            } else {
-                for (const auto& list : lists) {
-                    resultsBrowser->add(("@C255\xe2\x98\x86\t" + list + "\t(Playlist)").c_str());
-                    SearchResult r; r.title = list; r.video_id = list; // Flag it's a playlist
-                    last_results.push_back(r);
-                }
-            }
-            return;
-        }
-
-        if (searchBar && resultsBrowser) {
-            searchBar->value(cat.c_str());
-            if (searchFilter) searchFilter->value(0); // Reset to default for category clicks
-            search_cb(searchBar, resultsBrowser);
-        }
-    }
-}
-
-void pause_resume_cb(Fl_Widget* w, void* data) {
-    static bool paused = false;
-    if (paused) {
-        player->resume();
-        w->label("PAUSE");
-    } else {
-        player->pause();
-        w->label("RESUME");
-    }
-    paused = !paused;
-    w->redraw();
-}
-
-void eq_slider_cb(Fl_Widget* w, void* data) {
-    intptr_t band = (intptr_t)data;
-    Fl_Slider* slider = (Fl_Slider*)w;
-    if (player) {
-        player->set_eq_gain((int)band, slider->value());
-    }
-}
-
-void eq_toggle_cb(Fl_Widget* w, void* data) {
-    Fl_Check_Button* check = (Fl_Check_Button*)w;
-    if (player) {
-        player->set_eq_enabled(check->value());
-        std::cout << "[UI] EQ " << (check->value() ? "Enabled" : "Disabled") << std::endl;
-    }
-}
-
-void open_eq_window_cb(Fl_Widget* w, void* data) {
-    Fl_Double_Window* eqWin = new Fl_Double_Window(500, 320, "Equalizer (10 Bands)");
-    eqWin->color(Theme::SIDEBAR);
-    
-    Fl_Check_Button* eqToggle = new Fl_Check_Button(20, 10, 120, 25, " ENABLE EQ");
-    eqToggle->labelcolor(Theme::TEXT_PRIMARY);
-    eqToggle->callback(eq_toggle_cb);
-    if (player) eqToggle->value(player->is_eq_enabled() ? 1 : 0);
-
-    // dB Markers
-    Fl_Box* topDb = new Fl_Box(465, 45, 30, 20, "+12");
-    topDb->labelcolor(Theme::TEXT_SECONDARY);
-    topDb->labelsize(10);
-
-    Fl_Box* midDb = new Fl_Box(465, 137, 30, 20, "0");
-    midDb->labelcolor(Theme::TEXT_SECONDARY);
-    midDb->labelsize(10);
-
-    Fl_Box* botDb = new Fl_Box(465, 230, 30, 20, "-12");
-    botDb->labelcolor(Theme::TEXT_SECONDARY);
-    botDb->labelsize(10);
-
-    const char* labels[] = {"31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"};
-    
-    for (int i = 0; i < 10; ++i) {
-        Fl_Slider* s = new Fl_Slider(20 + i * 45, 50, 25, 200, labels[i]);
-        s->type(FL_VERT_SLIDER);
-        s->bounds(12, -12); // +12dB to -12dB
-        s->value(0);
-        s->color(Theme::HOVER);
-        s->selection_color(Theme::ACCENT);
-        s->callback(eq_slider_cb, (void*)(intptr_t)i);
-        s->labelsize(10);
-        s->labelcolor(Theme::TEXT_PRIMARY);
-    }
-    
-    eqWin->end();
-    eqWin->set_non_modal();
-    eqWin->show();
-}
-
-void prefs_toggle_cb(Fl_Widget* w, void* data) {
-    Fl_Check_Button* btn = (Fl_Check_Button*)w;
-    settings.loadThumbnails = btn->value();
-}
-
-void status_toggle_cb(Fl_Widget* w, void* data) {
-    Fl_Check_Button* btn = (Fl_Check_Button*)w;
-    settings.showStatusBar = btn->value();
-    if (statusBar) {
-        if (settings.showStatusBar) statusBar->show();
-        else statusBar->hide();
-    }
-}
-
-
-void buffer_cb(Fl_Widget* w, void* data) {
-    Fl_Slider* slider = (Fl_Slider*)w;
-    Fl_Box* label = (Fl_Box*)data;
-    settings.bufferSizeMB = (int)slider->value();
-    
-    char buf[64];
-    snprintf(buf, sizeof(buf), "Max Buffer Size: %d MB", settings.bufferSizeMB);
-    label->copy_label(buf);
-    label->redraw();
-
-    if (player) {
-        player->set_buffer_size(settings.bufferSizeMB);
-    }
-}
-
-void open_prefs_window_cb(Fl_Widget* w, void* data) {
-    Fl_Double_Window* prefWin = new Fl_Double_Window(300, 260, "Settings");
-    prefWin->color(Theme::SIDEBAR);
-    
-    Fl_Check_Button* thumbToggle = new Fl_Check_Button(20, 20, 260, 30, " Load Thumbnails");
-    thumbToggle->labelcolor(Theme::TEXT_PRIMARY);
-    thumbToggle->value(settings.loadThumbnails ? 1 : 0);
-    thumbToggle->callback(prefs_toggle_cb);
-
-    Fl_Check_Button* statusToggle = new Fl_Check_Button(20, 60, 260, 30, " Show Status Bar");
-    statusToggle->labelcolor(Theme::TEXT_PRIMARY);
-    statusToggle->value(settings.showStatusBar ? 1 : 0);
-    statusToggle->callback(status_toggle_cb);
-
-    Fl_Box* bufLabel = new Fl_Box(20, 110, 260, 20);
-    bufLabel->labelcolor(Theme::TEXT_SECONDARY);
-    bufLabel->labelsize(12);
-    bufLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-    char initBuf[64];
-    snprintf(initBuf, sizeof(initBuf), "Max Buffer Size: %d MB", settings.bufferSizeMB);
-    bufLabel->copy_label(initBuf);
-
-    Fl_Slider* bufSlider = new Fl_Slider(20, 135, 260, 20);
-    bufSlider->type(FL_HOR_SLIDER);
-    bufSlider->bounds(1, 100);
-    bufSlider->step(1);
-    bufSlider->value(settings.bufferSizeMB);
-    bufSlider->color(Theme::HOVER);
-    bufSlider->selection_color(Theme::ACCENT);
-    bufSlider->callback(buffer_cb, (void*)bufLabel);
-    
-    prefWin->end();
-    prefWin->set_non_modal();
-    prefWin->show();
+    Fl::repeat_timeout(0.2, update_ui_cb);
 }
 
 void update_status_bar_cb(void* data) {
     if (!statusBar) return;
 
-    // --- RAM ---
+    // RAM
     PROCESS_MEMORY_COUNTERS_EX pmc;
     GetProcessMemoryInfo(self, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc));
     double ram_mb = pmc.WorkingSetSize / (1024.0 * 1024.0);
 
-    // --- Network (D/U) ---
+    // Network
     static ULONG lastIn = 0, lastOut = 0;
     static bool first_net = true;
     double down_kb = 0, up_kb = 0;
@@ -666,7 +1287,7 @@ void update_status_bar_cb(void* data) {
     }
     if (pIfTable) free(pIfTable);
 
-    // --- Time & Buffer ---
+    // Local time
     time_t rawtime;
     struct tm * timeinfo;
     char time_str[80];
@@ -679,7 +1300,7 @@ void update_status_bar_cb(void* data) {
 
     char final_status[256];
     snprintf(final_status, sizeof(final_status), 
-             " YTfy Beta | Region: %s | RAM: %.1f MB | BUF: %.1f MB | Net D: %.1f KB/s U: %.1f KB/s | %s",
+             " Nynetify Spotify Clone | Region: %s | RAM: %.1f MB | BUF: %.1f MB | Net D: %.1f KB/s U: %.1f KB/s | %s",
              user_region.c_str(), ram_mb, buf_usage, down_kb, up_kb, time_str);
     
     statusBar->copy_label(final_status);
@@ -688,7 +1309,53 @@ void update_status_bar_cb(void* data) {
     Fl::repeat_timeout(1.0, update_status_bar_cb);
 }
 
+void detect_region() {
+    std::cout << "[UI] Detecting region..." << std::endl;
+    std::string temp_file = "region_temp.txt";
+    std::string cmd = "curl -s -L -o " + temp_file + " https://ipapi.co/country/";
+    system(cmd.c_str());
+
+    if (std::filesystem::exists(temp_file)) {
+        std::ifstream ifs(temp_file);
+        std::string region;
+        if (ifs >> region && region.length() == 2) {
+            user_region = region;
+            std::cout << "[UI] Region detected: " << user_region << std::endl;
+        }
+        ifs.close();
+        std::filesystem::remove(temp_file);
+    }
+}
+
+// Playlist view Play Click
+void playlist_play_click_cb(Fl_Widget* w, void* data) {
+    if (!last_results.empty()) {
+        play_queue = last_results;
+        current_queue_index = 0;
+        play_index(0);
+    }
+}
+
+// Playlist view Delete Click
+void playlist_delete_click_cb(Fl_Widget* w, void* data) {
+    if (current_category == "MY PLAYLISTS" && !current_playlist.empty()) {
+        if (show_styled_choice("Are you sure you want to delete this playlist?")) {
+            PlaylistManager::delete_playlist(current_playlist);
+            current_playlist = "";
+            show_home_view();
+            load_sidebar_playlists();
+        }
+    } else if (current_category == "MY FAVORITES") {
+        show_styled_message("You cannot delete the Liked Songs list.");
+    } else if (current_category == "YOUTUBE_PLAYLIST") {
+        show_styled_message("You cannot delete a YouTube playlist from here.");
+    } else if (current_category == "CHANNEL") {
+        show_styled_message("You cannot delete a channel from here.");
+    }
+}
+
 int main(int argc, char **argv) {
+    srand((unsigned int)time(nullptr));
     try {
         player = new PlayerEngine();
         self = GetCurrentProcess();
@@ -700,109 +1367,263 @@ int main(int argc, char **argv) {
     }
 
     Fl::background(18, 18, 18);
-    Fl_Double_Window *window = new Fl_Double_Window(1000, 750, "YTfy");
+    Fl_Double_Window *window = new Fl_Double_Window(1000, 750, "Nynetify Spotify Desktop");
     window->color(Theme::BACKGROUND);
     fl_register_images();
 
-    // Sidebar
-    Fl_Box *sidebarBox = new Fl_Box(0, 0, 200, 750);
+    // 1. LEFT SIDEBAR
+    Fl_Box *sidebarBox = new Fl_Box(0, 0, 200, 660);
     sidebarBox->box(FL_FLAT_BOX);
     sidebarBox->color(Theme::SIDEBAR);
 
-    // Cover Art Box
-    coverArtBox = new Fl_Box(10, 20, 180, 180);
-    coverArtBox->box(FL_NO_BOX);
+    Fl_Box* logoLabel = new Fl_Box(15, 15, 170, 30, "\xe2\x99\xab Nynetify");
+    logoLabel->labelcolor(Theme::ACCENT);
+    logoLabel->labelsize(22);
+    logoLabel->labelfont(FL_HELVETICA_BOLD);
+    logoLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-    Fl_Box *catLabel = new Fl_Box(10, 210, 180, 30, "CATEGORIES");
-    catLabel->labelcolor(Theme::TEXT_PRIMARY);
-    catLabel->labelsize(16);
-    catLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    ModernButton* homeBtn = new ModernButton(10, 55, 180, 35, "   Home");
+    homeBtn->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    homeBtn->callback([](Fl_Widget*, void*){ show_home_view(); });
 
-    categoryBrowser = new Fl_Browser(10, 250, 180, 400);
-    categoryBrowser->type(FL_HOLD_BROWSER);
-    categoryBrowser->box(FL_FLAT_BOX);
-    categoryBrowser->color(Theme::SIDEBAR);
-    categoryBrowser->textcolor(Theme::TEXT_SECONDARY);
-    categoryBrowser->selection_color(Theme::HOVER);
-    categoryBrowser->callback(category_cb);
-    for (const auto& cat : categories) {
-        categoryBrowser->add(cat.c_str());
-    }
+    ModernButton* searchBtn = new ModernButton(10, 95, 180, 35, "   Search");
+    searchBtn->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    searchBtn->callback([](Fl_Widget*, void*){ show_search_view(); });
 
-    ModernButton *prefsBtn = new ModernButton(10, 660, 180, 35, "PREFERENCES");
-    prefsBtn->callback(open_prefs_window_cb);
+    Fl_Box *libHeading = new Fl_Box(15, 140, 170, 20, "YOUR LIBRARY");
+    libHeading->labelcolor(Theme::TEXT_SECONDARY);
+    libHeading->labelsize(11);
+    libHeading->labelfont(FL_HELVETICA_BOLD);
+    libHeading->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-    ModernButton *newPlaylistBtn = new ModernButton(10, 620, 180, 35, "NEW PLAYLIST");
+    ModernButton* likedBtn = new ModernButton(10, 165, 180, 35, "   Liked Songs");
+    likedBtn->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    likedBtn->callback([](Fl_Widget*, void*){ show_favorites_view(); });
+
+    sidebarPlaylistList = new Fl_Hold_Browser(10, 205, 180, 345);
+    sidebarPlaylistList->box(FL_FLAT_BOX);
+    sidebarPlaylistList->color(Theme::SIDEBAR);
+    sidebarPlaylistList->textcolor(Theme::TEXT_SECONDARY);
+    sidebarPlaylistList->selection_color(Theme::HOVER);
+    sidebarPlaylistList->callback(sidebar_playlist_cb);
+
+    ModernButton *newPlaylistBtn = new ModernButton(10, 555, 180, 35, "+ Create Playlist");
     newPlaylistBtn->callback([](Fl_Widget*, void*){
-        CreatePlaylistWindow* win = new CreatePlaylistWindow();
-        win->set_modal();
+        static CreatePlaylistWindow* win = nullptr;
+        if (!win) {
+            win = new CreatePlaylistWindow();
+            win->set_modal();
+        } else {
+            win->clear_inputs();
+        }
+        if (Fl::first_window()) {
+            win->position(Fl::first_window()->x() + (Fl::first_window()->w() - win->w())/2,
+                          Fl::first_window()->y() + (Fl::first_window()->h() - win->h())/2);
+        }
         win->show();
     });
 
-    // Search Bar
-    searchBar = new Fl_Input(220, 20, 450, 35, "Search:");
-    searchBar->align(FL_ALIGN_LEFT);
+    ModernButton *prefsBtn = new ModernButton(10, 595, 180, 35, "Settings");
+    prefsBtn->callback(open_prefs_window_cb);
+
+    // 2. MAIN VIEW PANELS (using Fl_Group)
+    
+    // HOME VIEW PANEL
+    homeGroup = new Fl_Group(200, 0, 800, 660);
+    Fl_Box* homeBg = new Fl_Box(200, 0, 800, 660);
+    homeBg->box(FL_FLAT_BOX);
+    homeBg->color(Theme::BACKGROUND);
+
+    Fl_Box* greetingBox = new Fl_Box(220, 20, 500, 40);
+    greetingBox->copy_label(get_greeting().c_str());
+    greetingBox->labelcolor(Theme::TEXT_PRIMARY);
+    greetingBox->labelsize(28);
+    greetingBox->labelfont(FL_HELVETICA_BOLD);
+    greetingBox->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    Fl_Box* browseTitle = new Fl_Box(220, 70, 200, 25, "Browse Categories");
+    browseTitle->labelcolor(Theme::TEXT_PRIMARY);
+    browseTitle->labelsize(16);
+    browseTitle->labelfont(FL_HELVETICA_BOLD);
+    browseTitle->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    // 6 Cards on Home
+    const char* card_cats[] = { "Classic Rock", "Hip Hop", "Synthwave", "Lo-fi Beats", "Top Hits", "Liked Songs" };
+    for (int i = 0; i < 6; ++i) {
+        int col = i % 2;
+        int row = i / 2;
+        int cx = 220 + col * 380;
+        int cy = 105 + row * 95;
+        ModernButton* card = new ModernButton(cx, cy, 365, 80, card_cats[i]);
+        card->color(Theme::CARD_BG);
+        card->labelcolor(Theme::TEXT_PRIMARY);
+        card->labelsize(16);
+        card->align(FL_ALIGN_CENTER);
+        card->callback(category_card_cb, (void*)card_cats[i]);
+    }
+
+    Fl_Box* featuredTitle = new Fl_Box(220, 395, 300, 25, "Now Playing / Featured");
+    featuredTitle->labelcolor(Theme::TEXT_PRIMARY);
+    featuredTitle->labelsize(16);
+    featuredTitle->labelfont(FL_HELVETICA_BOLD);
+    featuredTitle->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    coverArtBox = new Fl_Box(220, 430, 200, 200);
+    coverArtBox->box(FL_FLAT_BOX);
+    coverArtBox->color(Theme::HOVER);
+
+    Fl_Box* featDesc = new Fl_Box(440, 430, 520, 200);
+    featDesc->box(FL_NO_BOX);
+    featDesc->labelcolor(Theme::TEXT_SECONDARY);
+    featDesc->align(FL_ALIGN_LEFT | FL_ALIGN_TOP | FL_ALIGN_INSIDE);
+    featDesc->copy_label("Connect, play, and discover millions of tracks directly via Youtube Audio streaming.\nCreate playlists inside the Your Library section, favorite your beloved tracks with the heart button, and fine-tune your frequencies using our build-in 10-band equalizer.");
+
+    homeGroup->end();
+
+    // SEARCH VIEW PANEL
+    searchGroup = new Fl_Group(200, 0, 800, 660);
+    Fl_Box* searchBg = new Fl_Box(200, 0, 800, 660);
+    searchBg->box(FL_FLAT_BOX);
+    searchBg->color(Theme::BACKGROUND);
+
+    searchBar = new Fl_Input(220, 20, 420, 35);
     searchBar->textcolor(Theme::TEXT_PRIMARY);
     searchBar->color(Theme::HOVER);
+    searchBar->box(FL_FLAT_BOX);
+    searchBar->tooltip("What do you want to listen to?");
 
-    searchFilter = new Fl_Choice(680, 20, 120, 35);
-    searchFilter->add("Default");
-    searchFilter->add("Only Songs");
-    searchFilter->add("Playlist");
+    searchFilter = new Fl_Choice(655, 20, 120, 35);
+    searchFilter->add("Everything");
+    searchFilter->add("Songs");
+    searchFilter->add("Playlists");
+    searchFilter->add("Channels");
     searchFilter->value(0);
     searchFilter->color(Theme::HOVER);
     searchFilter->textcolor(Theme::TEXT_PRIMARY);
     searchFilter->selection_color(Theme::ACCENT);
-    
-    // Results List
-    resultsBrowser = new ResultsBrowser(220, 70, 750, 500);
-    resultsBrowser->color(Theme::SIDEBAR);
+
+    searchGroup->end();
+
+    // PLAYLIST VIEW PANEL
+    playlistGroup = new Fl_Group(200, 0, 800, 660);
+    Fl_Box* playlistBg = new Fl_Box(200, 0, 800, 660);
+    playlistBg->box(FL_FLAT_BOX);
+    playlistBg->color(Theme::BACKGROUND);
+
+    Fl_Box* playlistHeaderBg = new Fl_Box(200, 0, 800, 200);
+    playlistHeaderBg->box(FL_FLAT_BOX);
+    playlistHeaderBg->color(fl_rgb_color(22, 45, 30)); // Dark Spotify-Green tone
+
+    playlistCoverBox = new Fl_Box(220, 30, 140, 140);
+    playlistCoverBox->box(FL_FLAT_BOX);
+    playlistCoverBox->color(Theme::HOVER);
+
+    playlistNameBox = new Fl_Box(380, 40, 600, 40, "Playlist Name");
+    playlistNameBox->labelcolor(Theme::TEXT_PRIMARY);
+    playlistNameBox->labelsize(28);
+    playlistNameBox->labelfont(FL_HELVETICA_BOLD);
+    playlistNameBox->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    playlistDescBox = new Fl_Box(380, 85, 600, 30, "A custom playlist created in Nynetify.");
+    playlistDescBox->labelcolor(Theme::TEXT_SECONDARY);
+    playlistDescBox->labelsize(13);
+    playlistDescBox->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    CircularButton* playlistPlayBtn = new CircularButton(380, 130, 50, 50, "@>");
+    playlistPlayBtn->color(Theme::ACCENT);
+    playlistPlayBtn->labelcolor(FL_BLACK);
+    playlistPlayBtn->callback(playlist_play_click_cb);
+
+    playlistDeleteBtn = new ModernButton(450, 138, 110, 34, "Delete Playlist");
+    playlistDeleteBtn->color(Theme::BACKGROUND);
+    playlistDeleteBtn->labelcolor(fl_rgb_color(220, 53, 69)); // red tone
+    playlistDeleteBtn->callback(playlist_delete_click_cb);
+
+    playlistGroup->end();
+
+    // 3. RESULTS BROWSER (Shared, repositioned dynamically)
+    resultsBrowser = new ResultsBrowser(220, 70, 760, 570);
+    resultsBrowser->color(Theme::BACKGROUND);
+    resultsBrowser->box(FL_FLAT_BOX);
     resultsBrowser->textcolor(Theme::TEXT_PRIMARY);
     resultsBrowser->callback(play_selected_cb);
     resultsBrowser->type(FL_HOLD_BROWSER);
+    resultsBrowser->selection_color(Theme::HOVER);
 
-    // Now Playing Indicator
-    nowPlayingBox = new Fl_Box(220, 575, 750, 30, "Ready to Play");
-    nowPlayingBox->labelcolor(Theme::TEXT_PRIMARY);
-    nowPlayingBox->labelsize(14);
-    nowPlayingBox->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-    
-    // Column configuration
-    static int browser_widths[] = {30, 500, 200, 0};
+    static int browser_widths[] = {40, 480, 200, 0};
     resultsBrowser->column_widths(browser_widths);
     resultsBrowser->column_char('\t');
 
     searchBar->callback(search_cb, resultsBrowser);
     searchBar->when(FL_WHEN_ENTER_KEY);
 
-    // Time Indicators
-    currentTimeBox = new Fl_Box(220, 610, 50, 20, "00:00");
-    currentTimeBox->labelcolor(Theme::TEXT_SECONDARY);
-    currentTimeBox->labelsize(12);
+    // 4. BOTTOM PLAYER BAR (y=660 to y=730)
+    Fl_Box* playerBarBox = new Fl_Box(0, 660, 1000, 70);
+    playerBarBox->box(FL_FLAT_BOX);
+    playerBarBox->color(Theme::SIDEBAR);
 
-    totalTimeBox = new Fl_Box(920, 610, 50, 20, "00:00");
-    totalTimeBox->labelcolor(Theme::TEXT_SECONDARY);
-    totalTimeBox->labelsize(12);
+    miniCoverArtBox = new Fl_Box(15, 665, 60, 60);
+    miniCoverArtBox->box(FL_FLAT_BOX);
+    miniCoverArtBox->color(Theme::HOVER);
 
-    // Progress Bar
-    progressBar = new ProgressSlider(220, 635, 750, 15);
-    progressBar->callback(seek_cb);
+    nowPlayingBox = new Fl_Box(85, 672, 180, 20, "Not Playing");
+    nowPlayingBox->labelcolor(Theme::TEXT_PRIMARY);
+    nowPlayingBox->labelfont(FL_HELVETICA_BOLD);
+    nowPlayingBox->labelsize(13);
+    nowPlayingBox->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-    // Player controls
-    ModernButton *playBtn = new ModernButton(420, 680, 80, 40, "PLAY");
-    playBtn->color(Theme::ACCENT);
-    playBtn->labelcolor(FL_WHITE);
+    nowPlayingArtistBox = new Fl_Box(85, 695, 180, 18, "");
+    nowPlayingArtistBox->labelcolor(Theme::TEXT_SECONDARY);
+    nowPlayingArtistBox->labelsize(11);
+    nowPlayingArtistBox->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    heartBtn = new HeartButton(275, 680, 30, 30);
+    heartBtn->callback(heart_btn_cb);
+
+    // Controls Center
+    ModernButton* shuffleBtn = new ModernButton(380, 670, 30, 30, "S");
+    shuffleBtn->color(Theme::SIDEBAR);
+    shuffleBtn->labelsize(10);
+    shuffleBtn->labelcolor(Theme::TEXT_SECONDARY);
+    shuffleBtn->callback(shuffle_cb);
+
+    ModernButton* prevBtn = new ModernButton(420, 670, 30, 30, "<");
+    prevBtn->color(Theme::SIDEBAR);
+    prevBtn->labelcolor(Theme::TEXT_PRIMARY);
+    prevBtn->callback([](Fl_Widget*, void*){ play_prev(); });
+
+    playBtn = new CircularButton(460, 665, 40, 40, "PLAY");
     playBtn->callback(play_btn_cb, resultsBrowser);
 
-    ModernButton *pauseBtn = new ModernButton(510, 680, 80, 40, "PAUSE");
-    pauseBtn->callback(pause_resume_cb);
+    ModernButton* nextBtn = new ModernButton(510, 670, 30, 30, ">");
+    nextBtn->color(Theme::SIDEBAR);
+    nextBtn->labelcolor(Theme::TEXT_PRIMARY);
+    nextBtn->callback([](Fl_Widget*, void*){ play_next(); });
 
-    // Volume Control
-    Fl_Box* volLabel = new Fl_Box(800, 680, 40, 40, "VOL");
-    volLabel->labelcolor(Theme::TEXT_SECONDARY);
-    volLabel->labelsize(12);
+    ModernButton* repeatBtn = new ModernButton(550, 670, 30, 30, "R");
+    repeatBtn->color(Theme::SIDEBAR);
+    repeatBtn->labelsize(10);
+    repeatBtn->labelcolor(Theme::TEXT_SECONDARY);
+    repeatBtn->callback(repeat_cb);
 
-    volumeSlider = new Fl_Slider(840, 690, 120, 20);
+    // Progress
+    currentTimeBox = new Fl_Box(330, 708, 40, 15, "00:00");
+    currentTimeBox->labelcolor(Theme::TEXT_SECONDARY);
+    currentTimeBox->labelsize(10);
+
+    progressBar = new ProgressSlider(380, 712, 240, 8);
+    progressBar->callback(seek_cb);
+
+    totalTimeBox = new Fl_Box(630, 708, 40, 15, "00:00");
+    totalTimeBox->labelcolor(Theme::TEXT_SECONDARY);
+    totalTimeBox->labelsize(10);
+
+    // Right side
+    Fl_Box* volIcon = new Fl_Box(760, 680, 30, 30, "VOL");
+    volIcon->labelcolor(Theme::TEXT_SECONDARY);
+    volIcon->labelsize(10);
+
+    volumeSlider = new Fl_Slider(790, 685, 100, 20);
     volumeSlider->type(FL_HOR_SLIDER);
     volumeSlider->color(Theme::HOVER);
     volumeSlider->selection_color(Theme::ACCENT);
@@ -810,15 +1631,12 @@ int main(int argc, char **argv) {
     volumeSlider->value(100);
     volumeSlider->callback(volume_cb);
 
-    ModernButton *eqBtn = new ModernButton(730, 680, 50, 40, "EQ");
+    ModernButton* eqBtn = new ModernButton(900, 675, 40, 40, "EQ");
+    eqBtn->color(Theme::SIDEBAR);
+    eqBtn->labelcolor(Theme::TEXT_SECONDARY);
     eqBtn->callback(open_eq_window_cb);
 
-    ModernButton *favBtn = new ModernButton(640, 680, 80, 40, "FAV+");
-    favBtn->callback(add_to_favs_cb);
-
-    Fl::add_timeout(0.2, update_ui_cb);
-
-    // Status Bar Background & Label
+    // 5. STATUS BAR (y=730 to y=750)
     statusBar = new Fl_Box(0, 730, 1000, 20);
     statusBar->box(FL_FLAT_BOX);
     statusBar->color(Theme::SIDEBAR);
@@ -827,16 +1645,16 @@ int main(int argc, char **argv) {
     statusBar->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     if (!settings.showStatusBar) statusBar->hide();
 
+    // Show initial Home view
+    show_home_view();
+    load_sidebar_playlists();
+
+    // Init Timeout loops
+    Fl::add_timeout(0.2, update_ui_cb);
+    Fl::add_timeout(0.5, update_status_bar_cb);
+
     window->end();
     window->show(argc, argv);
-
-    // Initial Search (Pre-load)
-    if (searchBar && resultsBrowser) {
-        searchBar->value("Top Hits");
-        search_cb(searchBar, resultsBrowser);
-    }
-
-    Fl::add_timeout(0.5, update_status_bar_cb);
 
     return Fl::run();
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(YTfy)
+project(Nynetify)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -10,8 +10,8 @@ include_directories(${FLTK_INCLUDE_DIR})
 # Replace with actual libmpv path if not in standard location
 include_directories(include)
 
-add_executable(YTfy 
+add_executable(Nynetify 
     src/main.cpp
 )
 
-target_link_libraries(YTfy ${FLTK_LIBRARIES} mpv psapi iphlpapi)
+target_link_libraries(Nynetify ${FLTK_LIBRARIES} mpv psapi iphlpapi)

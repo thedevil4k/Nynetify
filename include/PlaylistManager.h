@@ -54,12 +54,16 @@ public:
     }
 
     static void add_playlist_to_favorites(const std::string& playlist_name) {
+        std::string nm = playlist_name;
+        if (nm.size() < 4 || nm.substr(nm.size() - 4) != ".txt") nm += ".txt";
         std::ofstream f("FAVS/favs.txt", std::ios::app);
-        f << "playlist=" << playlist_name << ".txt\n";
+        f << "playlist=" << nm << "\n";
     }
 
     static void create_playlist(const std::string& name, const std::string& comment = "") {
-        std::string path = "PLAYLIST/" + name + ".txt";
+        std::string nm = name;
+        if (nm.size() < 4 || nm.substr(nm.size() - 4) != ".txt") nm += ".txt";
+        std::string path = "PLAYLIST/" + nm;
         if (!fs::exists(path)) {
             std::ofstream f(path);
             f << "[PLAYLIST]\n";
@@ -125,7 +129,9 @@ public:
     }
 
     static void add_to_playlist(const std::string& playlist_name, const std::string& video_id) {
-        std::string path = "PLAYLIST/" + playlist_name + ".txt";
+        std::string nm = playlist_name;
+        if (nm.size() < 4 || nm.substr(nm.size() - 4) != ".txt") nm += ".txt";
+        std::string path = "PLAYLIST/" + nm;
         std::ofstream f(path, std::ios::app);
         f << "v=" << video_id << "\n";
     }
