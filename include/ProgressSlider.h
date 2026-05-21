@@ -26,35 +26,44 @@ public:
 
     void draw() override {
         int x_val = x(), y_val = y(), w_val = w(), h_val = h();
-        
-        // Background
-        fl_draw_box(FL_FLAT_BOX, x_val, y_val, w_val, h_val, color());
 
         double max_val = maximum();
+        double handle_ratio = (max_val > 0) ? (value() - minimum()) / (max_val - minimum()) : 0;
+        if (handle_ratio < 0) handle_ratio = 0;
+        if (handle_ratio > 1) handle_ratio = 1;
+
+        // Background trough (rounded)
+        fl_color(color());
+        fl_draw_box(FL_RFLAT_BOX, x_val, y_val, w_val, h_val, color());
+
         if (max_val > 0) {
-            // Draw Buffered Range (Light Grey)
+            // Buffered Range (Light Grey) — rounded with clip
             double b_ratio = buffered_value / max_val;
             if (b_ratio > 1.0) b_ratio = 1.0;
             int bw = (int)(w_val * b_ratio);
             if (bw > 0) {
-                fl_draw_box(FL_FLAT_BOX, x_val, y_val, bw, h_val, fl_rgb_color(100, 100, 100));
+                fl_push_clip(x_val, y_val, bw, h_val);
+                fl_draw_box(FL_RFLAT_BOX, x_val, y_val, w_val, h_val, fl_rgb_color(100, 100, 100));
+                fl_pop_clip();
             }
 
-            // Draw Played Range (Green)
-            double p_ratio = (value() - minimum()) / (max_val - minimum());
-            if (p_ratio > 1.0) p_ratio = 1.0;
-            int pw = (int)(w_val * p_ratio);
+            // Played Range (Green) — rounded with clip
+            int pw = (int)(w_val * handle_ratio);
             if (pw > 0) {
-                fl_draw_box(FL_FLAT_BOX, x_val, y_val, pw, h_val, selection_color());
+                fl_push_clip(x_val, y_val, pw, h_val);
+                fl_draw_box(FL_RFLAT_BOX, x_val, y_val, w_val, h_val, selection_color());
+                fl_pop_clip();
             }
         }
 
-        // Draw handle (small white line)
-        double handle_ratio = (value() - minimum()) / (max_val - minimum());
-        int hx = x_val + (int)(w_val * handle_ratio) - 1;
-        if (hx < x_val) hx = x_val;
-        if (hx > x_val + w_val - 2) hx = x_val + w_val - 2;
-        fl_draw_box(FL_FLAT_BOX, hx, y_val, 2, h_val, FL_WHITE);
+        // Handle (small circle)
+        int hd = h_val + 6;
+        if (hd > 14) hd = 14;
+        int hr = hd / 2;
+        int hx = x_val + (int)(w_val * handle_ratio);
+        int hy = y_val + h_val / 2;
+        fl_color(FL_WHITE);
+        fl_pie(hx - hr, hy - hr, hd, hd, 0, 360);
     }
 };
 

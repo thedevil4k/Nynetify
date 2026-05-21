@@ -23,7 +23,7 @@ public:
         mpv_set_option_string(handle, "ytdl-format", "bestaudio/best");
         
         // Point to the yt-dlp executable
-        const char* ytdl_path = "C:/msys64/mingw64/bin/yt-dlp.exe";
+        const char* ytdl_path = "yt-dlp";
         std::string script_opts = "ytdl_hook-ytdl_path=" + std::string(ytdl_path);
         mpv_set_option_string(handle, "script-opts", script_opts.c_str());
         

@@ -12,7 +12,7 @@
 
 // Full path to yt-dlp so it works regardless of system PATH
 #ifdef _WIN32
-    static const char* YT_DLP = "C:/msys64/mingw64/bin/yt-dlp.exe";
+    static const char* YT_DLP = "yt-dlp";
 #else
     static const char* YT_DLP = "yt-dlp";
 #endif
@@ -21,6 +21,7 @@ struct SearchResult {
     std::string title;
     std::string author;
     std::string video_id;
+    std::string channel_id;
     std::string duration;
     bool is_playlist = false;
     bool is_channel = false;
@@ -32,7 +33,7 @@ public:
         std::vector<SearchResult> results;
         if (ids.empty()) return results;
 
-        std::string command = std::string(YT_DLP) + " --ignore-config --no-warnings --flat-playlist --print title --print uploader --print id";
+        std::string command = std::string(YT_DLP) + " --ignore-config --no-warnings --flat-playlist --print title --print uploader --print channel_id --print id";
         for (const auto& id : ids) {
             command += " \"https://www.youtube.com/watch?v=" + id + "\"";
         }
@@ -49,11 +50,12 @@ public:
             if (!line.empty()) lines.push_back(line);
         }
 
-        for (size_t i = 0; i + 2 < lines.size(); i += 3) {
+        for (size_t i = 0; i + 3 < lines.size(); i += 4) {
             SearchResult r;
-            r.title    = lines[i];
-            r.author   = lines[i + 1];
-            r.video_id = lines[i + 2];
+            r.title      = lines[i];
+            r.author     = lines[i + 1];
+            r.channel_id = lines[i + 2];
+            r.video_id   = lines[i + 3];
             results.push_back(r);
         }
         return results;
@@ -92,7 +94,7 @@ public:
             }
             command = std::string(YT_DLP)
                 + " \"" + prefix + modified_query + "\""
-                + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings";
+                + " --flat-playlist --ignore-config --print title --print uploader --print channel_id --print id --no-warnings";
         }
 
         if (!region.empty()) {
@@ -119,13 +121,26 @@ public:
 
         std::cout << "[DEBUG] Received " << lines.size() << " lines of output." << std::endl;
 
-        for (size_t i = 0; i + 2 < lines.size(); i += 3) {
+        // Songs (filter_type 0/1): 4 fields per result (title, uploader, channel_id, id)
+        // Playlists (filter_type 2): 3 fields per result (title, uploader, id)
+        // Channels (filter_type 3): 3 fields per result (title, channel, channel_id)
+        int step = (filter_type == 0 || filter_type == 1) ? 4 : 3;
+        for (size_t i = 0; i + step - 1 < lines.size(); i += step) {
             SearchResult r;
-            r.title    = lines[i];
-            r.author   = lines[i + 1];
-            r.video_id = lines[i + 2];
-            if (filter_type == 2) r.is_playlist = true;
-            if (filter_type == 3) r.is_channel = true;
+            r.title  = lines[i];
+            r.author = lines[i + 1];
+            if (step == 4) {
+                r.channel_id = lines[i + 2];
+                r.video_id   = lines[i + 3];
+            } else {
+                r.video_id   = lines[i + 2]; // playlist_id or channel_id
+                if (filter_type == 2) {
+                    r.is_playlist = true;
+                } else if (filter_type == 3) {
+                    r.is_channel = true;
+                    r.channel_id = lines[i + 2];
+                }
+            }
             results.push_back(r);
         }
 
@@ -137,7 +152,7 @@ public:
         std::string url = "https://www.youtube.com/playlist?list=" + playlist_id;
         std::string command = std::string(YT_DLP)
             + " \"" + url + "\""
-            + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings 2>NUL";
+            + " --flat-playlist --ignore-config --print title --print uploader --print channel_id --print id --no-warnings 2>NUL";
 
         std::cout << "[DEBUG] Fetching playlist videos: " << command << std::endl;
         std::string output = execute(command);
@@ -157,11 +172,12 @@ public:
 
         std::cout << "[DEBUG] Received " << lines.size() << " lines for playlist." << std::endl;
 
-        for (size_t i = 0; i + 2 < lines.size(); i += 3) {
+        for (size_t i = 0; i + 3 < lines.size(); i += 4) {
             SearchResult r;
-            r.title    = lines[i];
-            r.author   = lines[i + 1];
-            r.video_id = lines[i + 2];
+            r.title      = lines[i];
+            r.author     = lines[i + 1];
+            r.channel_id = lines[i + 2];
+            r.video_id   = lines[i + 3];
             results.push_back(r);
         }
 
@@ -191,6 +207,7 @@ public:
                 r.title       = lines[i];
                 r.author      = lines[i + 1];
                 r.video_id    = lines[i + 2];
+                r.channel_id  = channel_id;
                 r.is_playlist = true;
                 results.push_back(r);
             }
@@ -213,9 +230,10 @@ public:
             }
             for (size_t i = 0; i + 2 < lines.size(); i += 3) {
                 SearchResult r;
-                r.title    = lines[i];
-                r.author   = channel_name;
-                r.video_id = lines[i + 2];
+                r.title      = lines[i];
+                r.author     = channel_name;
+                r.video_id   = lines[i + 2];
+                r.channel_id = channel_id;
                 results.push_back(r);
             }
         }
@@ -232,6 +250,13 @@ public:
         return "https://img.youtube.com/vi/" + video_id + "/hqdefault.jpg";
     }
 
+    static std::string get_channel_id(const std::string& video_id) {
+        std::string cmd = std::string(YT_DLP)
+            + " --ignore-config --print channel_id"
+            + " \"https://www.youtube.com/watch?v=" + video_id + "\" 2>NUL";
+        return execute(cmd);
+    }
+
     static std::string get_channel_avatar_url(const std::string& channel_id) {
         std::string cmd = "curl -s \"https://www.youtube.com/channel/" + channel_id + "\" 2>NUL";
         std::string html = execute(cmd);
@@ -246,7 +271,6 @@ public:
         return "";
     }
 
-private:
     static std::string execute(const std::string& cmd) {
         std::array<char, 256> buffer;
         std::string result;
