@@ -12,6 +12,12 @@ include_directories(include)
 
 add_executable(Nynetify 
     src/main.cpp
+    src/AppSettings.cpp
+    src/UIWidgets.cpp
+    src/ArtistParser.cpp
+    src/PlayerController.cpp
+    src/ViewManager.cpp
+    src/AppCallbacks.cpp
 )
 
 target_link_libraries(Nynetify ${FLTK_LIBRARIES} mpv psapi iphlpapi)

@@ -33,11 +33,14 @@ public:
         // Request log messages to debug
         mpv_request_log_messages(handle, "info");
 
-        // Caching and Progressive Download (Fractionated)
+        // Fast, low-latency audio streaming
         mpv_set_option_string(handle, "cache", "yes");
-        mpv_set_option_string(handle, "demuxer-max-bytes", "2M"); // Start with 2MB
-        mpv_set_option_string(handle, "demuxer-max-back-bytes", "2M");
-        mpv_set_option_string(handle, "demuxer-readahead-secs", "30");    // Buffer 30 seconds ahead
+        mpv_set_option_string(handle, "cache-pause-initial", "no");       // Play as soon as first byte arrives
+        mpv_set_option_string(handle, "cache-pause", "no");               // Don't stall on minor rebuffers
+        mpv_set_option_string(handle, "demuxer-max-bytes", "512KiB");     // Smaller initial buffer (audio only)
+        mpv_set_option_string(handle, "demuxer-max-back-bytes", "512KiB");
+        mpv_set_option_string(handle, "demuxer-readahead-secs", "5");     // Only read 5s ahead
+        mpv_set_option_string(handle, "network-timeout", "5");            // Fail fast on connection loss
         
         if (mpv_initialize(handle) < 0) 
             throw std::runtime_error("Failed to initialize MPV");

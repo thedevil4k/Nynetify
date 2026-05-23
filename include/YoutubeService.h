@@ -10,12 +10,8 @@
 #include <stdexcept>
 #include <array>
 
-// Full path to yt-dlp so it works regardless of system PATH
-#ifdef _WIN32
-    static const char* YT_DLP = "yt-dlp";
-#else
-    static const char* YT_DLP = "yt-dlp";
-#endif
+static const char* YT_DLP = "yt-dlp";
+static const char* YT_DLP_FAST = " --extractor-args \"youtube:skip=hls,dash;player_client=android\" --socket-timeout 5 --retries 1";
 
 struct SearchResult {
     std::string title;
@@ -33,7 +29,7 @@ public:
         std::vector<SearchResult> results;
         if (ids.empty()) return results;
 
-        std::string command = std::string(YT_DLP) + " --ignore-config --no-warnings --flat-playlist --print title --print uploader --print channel_id --print id";
+        std::string command = std::string(YT_DLP) + std::string(YT_DLP_FAST) + " --ignore-config --no-warnings --flat-playlist --print title --print uploader --print channel_id --print id --no-playlist";
         for (const auto& id : ids) {
             command += " \"https://www.youtube.com/watch?v=" + id + "\"";
         }
@@ -73,7 +69,7 @@ public:
                 encoded.replace(p, 1, "+");
                 p += 1;
             }
-            command = std::string(YT_DLP)
+            command = std::string(YT_DLP) + std::string(YT_DLP_FAST)
                 + " \"https://www.youtube.com/results?search_query=" + encoded + "&sp=EgIQAw==\""
                 + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings";
         } else if (filter_type == 3) { // Channels: use YouTube search URL with channel filter
@@ -83,7 +79,7 @@ public:
                 encoded.replace(p, 1, "+");
                 p += 1;
             }
-            command = std::string(YT_DLP)
+            command = std::string(YT_DLP) + std::string(YT_DLP_FAST)
                 + " \"https://www.youtube.com/results?search_query=" + encoded + "&sp=EgIQAg==\""
                 + " --flat-playlist --ignore-config --print title --print channel --print channel_id --no-warnings";
         } else {
@@ -92,7 +88,7 @@ public:
             if (filter_type == 1) { // Only Songs
                 modified_query += " song";
             }
-            command = std::string(YT_DLP)
+            command = std::string(YT_DLP) + std::string(YT_DLP_FAST)
                 + " \"" + prefix + modified_query + "\""
                 + " --flat-playlist --ignore-config --print title --print uploader --print channel_id --print id --no-warnings";
         }
@@ -150,7 +146,7 @@ public:
     static std::vector<SearchResult> get_playlist_videos(const std::string& playlist_id) {
         std::vector<SearchResult> results;
         std::string url = "https://www.youtube.com/playlist?list=" + playlist_id;
-        std::string command = std::string(YT_DLP)
+        std::string command = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " \"" + url + "\""
             + " --flat-playlist --ignore-config --print title --print uploader --print channel_id --print id --no-warnings 2>NUL";
 
@@ -189,7 +185,7 @@ public:
 
         // Fetch playlists from the channel
         std::string pl_url = "https://www.youtube.com/channel/" + channel_id + "/playlists";
-        std::string cmd = std::string(YT_DLP)
+        std::string cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " \"" + pl_url + "\""
             + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings 2>NUL";
         std::cout << "[DEBUG] Fetching channel playlists: " << cmd << std::endl;
@@ -215,7 +211,7 @@ public:
 
         // Fetch videos from the channel
         std::string vid_url = "https://www.youtube.com/channel/" + channel_id + "/videos";
-        cmd = std::string(YT_DLP)
+        cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " \"" + vid_url + "\""
             + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings 2>NUL";
         std::cout << "[DEBUG] Fetching channel videos: " << cmd << std::endl;
@@ -251,8 +247,8 @@ public:
     }
 
     static std::string get_channel_id(const std::string& video_id) {
-        std::string cmd = std::string(YT_DLP)
-            + " --ignore-config --print channel_id"
+        std::string cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
+            + " --ignore-config --print channel_id --no-playlist"
             + " \"https://www.youtube.com/watch?v=" + video_id + "\" 2>NUL";
         return execute(cmd);
     }
