@@ -16,6 +16,7 @@
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Check_Button.H>
+#include <FL/Fl_PNG_Image.H>
 #include <FL/Fl_JPEG_Image.H>
 #include <FL/Fl_Shared_Image.H>
 #include <FL/Fl_Browser.H>
@@ -132,6 +133,10 @@ int main(int argc, char **argv) {
     auto* window = new Fl_Double_Window(1000, 750, lang->window_title);
     window->color(Theme::BACKGROUND);
     fl_register_images();
+
+    // Set taskbar icon
+    Fl_PNG_Image app_icon("Nynetify.png");
+    window->icon(&app_icon);
 
     /* ── 1. LEFT SIDEBAR (0–200) ──────────────────── */
     auto* sidebarBox = new Fl_Box(0, 0, 200, 660);

@@ -1,18 +1,10 @@
 # ninja log v7
-85	8175	8012590787667328	CMakeFiles/Nynetify.dir/src/main.cpp.obj	57efa7a33f262953
-8175	8654	8012590868576123	Nynetify.exe	356549766dfa7a3a
-6	678	8012600749956926	build.ninja	30d5a1e02d16bac3
-6	678	8012600749956926	D:/Nynetify/build/cmake_install.cmake	30d5a1e02d16bac3
-39	1372	8012600750626664	CMakeFiles/Nynetify.dir/src/PlayerController.cpp.obj	1e14656d578cd95f
-35	1433	8012600750601582	CMakeFiles/Nynetify.dir/src/ArtistParser.cpp.obj	6eb897e26793cb40
-26	2251	8012600750525464	CMakeFiles/Nynetify.dir/src/AppSettings.cpp.obj	7bcdbab1302fe378
-21	2508	8012600750475260	CMakeFiles/Nynetify.dir/src/main.cpp.obj	57efa7a33f262953
-23	1467	8012601249926714	CMakeFiles/Nynetify.dir/src/ArtistParser.cpp.obj	6eb897e26793cb40
-28	1469	8012601249971788	CMakeFiles/Nynetify.dir/src/PlayerController.cpp.obj	1e14656d578cd95f
-14	2352	8012601249825128	CMakeFiles/Nynetify.dir/src/AppSettings.cpp.obj	7bcdbab1302fe378
-9	2535	8012601249785076	CMakeFiles/Nynetify.dir/src/main.cpp.obj	57efa7a33f262953
-13	1454	8012601401090398	CMakeFiles/Nynetify.dir/src/UIWidgets.cpp.obj	d8b7c9ae74dd58a0
-24	1718	8012601401191885	CMakeFiles/Nynetify.dir/src/AppCallbacks.cpp.obj	1e6897ada86bb772
-8	2273	8012601401039227	CMakeFiles/Nynetify.dir/src/main.cpp.obj	57efa7a33f262953
-19	2566	8012601401136773	CMakeFiles/Nynetify.dir/src/ViewManager.cpp.obj	791ab64f75fe930a
-2566	2799	8012601426609881	Nynetify.exe	e994fb5deed2b62f
+84	357	8012612612849389	CMakeFiles/Nynetify.dir/src/app.rc.obj	67b7b0cf21d9077a
+67	1867	8012612612677788	CMakeFiles/Nynetify.dir/src/PlayerController.cpp.obj	d5bda2cba397910e
+22	2118	8012612612224519	CMakeFiles/Nynetify.dir/src/ArtistParser.cpp.obj	8841203f5210259c
+12	2882	8012612612123882	CMakeFiles/Nynetify.dir/src/AppSettings.cpp.obj	9a2bfa581c5acd1d
+7	3135	8012612612071929	CMakeFiles/Nynetify.dir/src/main.cpp.obj	9d653300e8920c0e
+17	3169	8012612612174481	CMakeFiles/Nynetify.dir/src/UIWidgets.cpp.obj	e86a4c5d75f2f583
+78	3941	8012612612784339	CMakeFiles/Nynetify.dir/src/AppCallbacks.cpp.obj	8731122bc2cfe1a0
+72	5031	8012612612727854	CMakeFiles/Nynetify.dir/src/ViewManager.cpp.obj	42903d48ba7ccf73
+12	231	8012612739749908	Nynetify.exe	8379eff424278595

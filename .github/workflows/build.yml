@@ -1,0 +1,237 @@
+name: Build & Package
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  # ── Windows x86-64 ──────────────────────────────
+  windows-x64:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-fltk
+            mingw-w64-x86_64-mpv
+            mingw-w64-x86_64-python-pillow
+            mingw-w64-x86_64-python-pip
+
+      - name: Install yt-dlp
+        run: pip install yt-dlp
+        shell: powershell
+
+      - name: Convert icon
+        run: python -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+        shell: powershell
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package portable ZIP
+        run: |
+          mkdir -p package
+          cp build/Nynetify.exe package/
+          cp /mingw64/bin/libmpv-2.dll package/
+          cp /mingw64/bin/libfltk-1.4.dll package/
+          cp /mingw64/bin/libfltk_images-1.4.dll package/
+          cp /mingw64/bin/libstdc++-6.dll package/
+          cp /mingw64/bin/libgcc_s_seh-1.dll package/
+          cp /mingw64/bin/libwinpthread-1.dll package/
+          cp /mingw64/bin/libpng16-16.dll package/
+          cp /mingw64/bin/libjpeg-8.dll package/
+          cp /mingw64/bin/libzlib1.dll package/
+          cp /mingw64/bin/libbrotlicommon.dll package/
+          cp /mingw64/bin/libbrotlidec.dll package/
+          cp /mingw64/bin/libfreetype-6.dll package/
+          cp /mingw64/bin/libharfbuzz-0.dll package/
+          cp /mingw64/bin/libglib-2.0-0.dll package/
+          cp /mingw64/bin/libintl-8.dll package/
+          cp /mingw64/bin/libpcre2-8-0.dll package/
+          cp /mingw64/bin/libiconv-2.dll package/
+          cp "$(python -c 'import yt_dlp; print(yt_dlp.__file__)' | sed 's|__init__\\.py||')__main__.exe" package/yt-dlp.exe || true
+          cd package && 7z a ../Nynetify-x64-portable.zip *
+        shell: msys2 {0}
+
+      - name: Install NSIS
+        run: choco install nsis -y
+        shell: powershell
+
+      - name: Build NSIS installer
+        run: |
+          cp packaging/windows/installer.nsi package/
+          cd package
+          makensis /DARCH=x64 /DMSYS2_BIN=C:/msys64/mingw64/bin installer.nsi
+        shell: powershell
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-x64
+          path: package/Nynetify-*.exe
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-x64-portable
+          path: Nynetify-x64-portable.zip
+          compression-level: 0
+
+  # ── Windows ARM64 ───────────────────────────────
+  windows-arm64:
+    runs-on: windows-11-arm
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          install: >
+            mingw-w64-clang-aarch64-cmake
+            mingw-w64-clang-aarch64-ninja
+            mingw-w64-clang-aarch64-fltk
+            mingw-w64-clang-aarch64-mpv
+            mingw-w64-clang-aarch64-python-pillow
+            mingw-w64-clang-aarch64-python-pip
+
+      - name: Install yt-dlp
+        run: pip install yt-dlp
+        shell: powershell
+
+      - name: Convert icon
+        run: python -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+        shell: powershell
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package portable ZIP
+        run: |
+          mkdir -p package
+          cp build/Nynetify.exe package/
+          cp /clangarm64/bin/libmpv-2.dll package/
+          cp /clangarm64/bin/libfltk-1.4.dll package/
+          cp /clangarm64/bin/libfltk_images-1.4.dll package/
+          cp /clangarm64/bin/libstdc++-6.dll package/
+          cp /clangarm64/bin/libgcc_s_seh-1.dll package/
+          cp /clangarm64/bin/libwinpthread-1.dll package/
+          cp /clangarm64/bin/libpng16-16.dll package/
+          cp /clangarm64/bin/libjpeg-8.dll package/
+          cp /clangarm64/bin/libzlib1.dll package/
+          cp /clangarm64/bin/libbrotlicommon.dll package/
+          cp /clangarm64/bin/libbrotlidec.dll package/
+          cp /clangarm64/bin/libfreetype-6.dll package/
+          cp /clangarm64/bin/libharfbuzz-0.dll package/
+          cp /clangarm64/bin/libglib-2.0-0.dll package/
+          cp /clangarm64/bin/libintl-8.dll package/
+          cp /clangarm64/bin/libpcre2-8-0.dll package/
+          cp /clangarm64/bin/libiconv-2.dll package/
+          cp "$(python -c 'import yt_dlp; print(yt_dlp.__file__)' | sed 's|__init__\\.py||')__main__.exe" package/yt-dlp.exe || true
+          cd package && 7z a ../Nynetify-arm64-portable.zip *
+        shell: msys2 {0}
+
+      - name: Install NSIS
+        run: choco install nsis -y
+        shell: powershell
+
+      - name: Build NSIS installer
+        run: |
+          cp packaging/windows/installer.nsi package/
+          cd package
+          makensis /DARCH=arm64 /DMSYS2_BIN=C:/msys64/clangarm64/bin installer.nsi
+        shell: powershell
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-arm64
+          path: package/Nynetify-*.exe
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-arm64-portable
+          path: Nynetify-arm64-portable.zip
+          compression-level: 0
+
+  # ── Linux x86-64 (DEB) ──────────────────────────
+  linux-deb:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libfltk1.3-dev libmpv-dev python3-pip python3-pil
+          pip3 install yt-dlp --break-system-packages
+
+      - name: Convert icon (placeholder for Linux)
+        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package DEB
+        run: |
+          cd build && cpack -G DEB
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-deb
+          path: build/nynetify-*.deb
+          compression-level: 0
+
+  # ── Linux x86-64 (RPM) ──────────────────────────
+  linux-rpm:
+    runs-on: fedora-40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo dnf install -y cmake gcc-c++ fltk-devel mpv-libs-devel python3-pip python3-pillow rpm-build
+          pip3 install yt-dlp --break-system-packages
+
+      - name: Convert icon (placeholder for Linux)
+        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package RPM
+        run: |
+          cd build && cpack -G RPM
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-rpm
+          path: build/nynetify-*.rpm
+          compression-level: 0
