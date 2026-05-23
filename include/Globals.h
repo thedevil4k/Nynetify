@@ -22,6 +22,7 @@
 
 /* ── Forward Declarations ────────────────────────── */
 class PlayerEngine;
+class SystemTray;
 struct SearchResult;
 struct CoverArtTask;
 struct ChannelLoadTask;
@@ -37,6 +38,9 @@ class ModernChoice;
 
 // Player engine instance
 extern PlayerEngine* player;
+
+// System tray
+extern SystemTray* systemTray;
 
 // Search / result state
 extern std::vector<SearchResult> last_results;

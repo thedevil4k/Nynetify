@@ -126,6 +126,17 @@ build CMakeFiles/Nynetify.dir/src/AppCallbacks.cpp.obj: CXX_COMPILER__Nynetify_u
   TARGET_PDB = Nynetify.pdb
   TARGET_SUPPORT_DIR = CMakeFiles\Nynetify.dir
 
+build CMakeFiles/Nynetify.dir/src/SystemTray.cpp.obj: CXX_COMPILER__Nynetify_unscanned_Release D$:/Nynetify/src/SystemTray.cpp || cmake_object_order_depends_target_Nynetify
+  CONFIG = Release
+  DEP_FILE = CMakeFiles\Nynetify.dir\src\SystemTray.cpp.obj.d
+  FLAGS = -O3 -DNDEBUG -std=gnu++20
+  INCLUDES = -ID:/Nynetify/include
+  OBJECT_DIR = CMakeFiles\Nynetify.dir
+  OBJECT_FILE_DIR = CMakeFiles\Nynetify.dir\src
+  TARGET_COMPILE_PDB = CMakeFiles\Nynetify.dir\
+  TARGET_PDB = Nynetify.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Nynetify.dir
+
 build CMakeFiles/Nynetify.dir/src/app.rc.obj: RC_COMPILER__Nynetify_unscanned_Release D$:/Nynetify/src/app.rc || cmake_object_order_depends_target_Nynetify
   CONFIG = Release
   DEP_FILE = CMakeFiles\Nynetify.dir\src\app.rc.obj.d
@@ -144,7 +155,7 @@ build CMakeFiles/Nynetify.dir/src/app.rc.obj: RC_COMPILER__Nynetify_unscanned_Re
 #############################################
 # Link the executable Nynetify.exe
 
-build Nynetify.exe: CXX_EXECUTABLE_LINKER__Nynetify_Release CMakeFiles/Nynetify.dir/src/main.cpp.obj CMakeFiles/Nynetify.dir/src/AppSettings.cpp.obj CMakeFiles/Nynetify.dir/src/UIWidgets.cpp.obj CMakeFiles/Nynetify.dir/src/ArtistParser.cpp.obj CMakeFiles/Nynetify.dir/src/PlayerController.cpp.obj CMakeFiles/Nynetify.dir/src/ViewManager.cpp.obj CMakeFiles/Nynetify.dir/src/AppCallbacks.cpp.obj CMakeFiles/Nynetify.dir/src/app.rc.obj | C$:/msys64/mingw64/lib/libfltk_images.dll.a C$:/msys64/mingw64/lib/libfltk_forms.dll.a C$:/msys64/mingw64/lib/libfltk_gl.dll.a C$:/msys64/mingw64/lib/libfltk.dll.a
+build Nynetify.exe: CXX_EXECUTABLE_LINKER__Nynetify_Release CMakeFiles/Nynetify.dir/src/main.cpp.obj CMakeFiles/Nynetify.dir/src/AppSettings.cpp.obj CMakeFiles/Nynetify.dir/src/UIWidgets.cpp.obj CMakeFiles/Nynetify.dir/src/ArtistParser.cpp.obj CMakeFiles/Nynetify.dir/src/PlayerController.cpp.obj CMakeFiles/Nynetify.dir/src/ViewManager.cpp.obj CMakeFiles/Nynetify.dir/src/AppCallbacks.cpp.obj CMakeFiles/Nynetify.dir/src/SystemTray.cpp.obj CMakeFiles/Nynetify.dir/src/app.rc.obj | C$:/msys64/mingw64/lib/libfltk_images.dll.a C$:/msys64/mingw64/lib/libfltk_forms.dll.a C$:/msys64/mingw64/lib/libfltk_gl.dll.a C$:/msys64/mingw64/lib/libfltk.dll.a
   CONFIG = Release
   FLAGS = -O3 -DNDEBUG
   LINK_FLAGS = -mwindows

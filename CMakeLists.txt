@@ -21,6 +21,7 @@ add_executable(Nynetify
     src/PlayerController.cpp
     src/ViewManager.cpp
     src/AppCallbacks.cpp
+    src/SystemTray.cpp
 )
 
 if(WIN32)

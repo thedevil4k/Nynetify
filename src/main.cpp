@@ -39,6 +39,7 @@
 #include "PlayerEngine.h"
 #include "Theme.h"
 #include "ModernButton.h"
+#include "SystemTray.h"
 #include "ProgressSlider.h"
 #include "ModernSlider.h"
 #include "ModernChoice.h"
@@ -52,6 +53,7 @@
  * ================================================================ */
 
 PlayerEngine* player = nullptr;
+SystemTray* systemTray = nullptr;
 std::vector<SearchResult> last_results;
 int total_loaded_results = 0;
 std::string last_search_query;
@@ -422,5 +424,9 @@ int main(int argc, char **argv) {
 
     window->end();
     window->show(argc, argv);
-    return Fl::run();
+    systemTray = new SystemTray(window);
+    int ret = Fl::run();
+    delete systemTray;
+    delete player;
+    return ret;
 }
