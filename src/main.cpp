@@ -30,9 +30,11 @@
 #include <ctime>
 #include <cstdlib>
 
+#ifdef _WIN32
 #include <windows.h>
 #include <psapi.h>
 #include <iphlpapi.h>
+#endif
 
 #include "Globals.h"
 #include "AppSettings.h"
@@ -123,7 +125,9 @@ int main(int argc, char **argv) {
     /* Initialise player & region detection (async) */
     try {
         player = new PlayerEngine();
+#ifdef _WIN32
         self = GetCurrentProcess();
+#endif
         PlaylistManager::ensure_directories();
         detect_region();
     } catch (const std::exception& e) {

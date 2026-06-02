@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
@@ -135,3 +136,9 @@ long __stdcall SystemTray::wnd_proc(void* hwnd, unsigned int msg, unsigned long 
 
     return CallWindowProc((WNDPROC)self->old_proc, (HWND)hwnd, msg, wParam, lParam);
 }
+#else
+#include "SystemTray.h"
+SystemTray::SystemTray(Fl_Window* win) {}
+SystemTray::~SystemTray() {}
+void SystemTray::quit() {}
+#endif

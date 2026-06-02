@@ -2,6 +2,7 @@
 #include <FL/Fl_Window.H>
 
 class SystemTray {
+#ifdef _WIN32
     void* hwnd;
     void* old_proc;
     void* nid_data;  // NOTIFYICONDATAA*
@@ -17,6 +18,7 @@ class SystemTray {
 
     static long __stdcall wnd_proc(void*, unsigned int, unsigned long long, long long);
     static SystemTray* self;
+#endif
 
 public:
     SystemTray(Fl_Window* win);

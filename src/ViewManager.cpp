@@ -4,9 +4,13 @@
 #include <thread>
 #include <cstdlib>
 #include <ctime>
+#ifdef _WIN32
 #include <windows.h>
 #include <psapi.h>
 #include <iphlpapi.h>
+#else
+#include <unistd.h>
+#endif
 #include "ViewManager.h"
 #include "Globals.h"
 #include "Theme.h"
@@ -323,13 +327,16 @@ void detect_region() {
 void update_status_bar_cb(void* data) {
     if (!statusBar) return;
 
+    double ram_mb = 0.0;
+    double down_kb = 0.0, up_kb = 0.0;
+
+#ifdef _WIN32
     PROCESS_MEMORY_COUNTERS_EX pmc;
     GetProcessMemoryInfo(self, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc));
-    double ram_mb = pmc.WorkingSetSize / (1024.0 * 1024.0);
+    ram_mb = pmc.WorkingSetSize / (1024.0 * 1024.0);
 
     static ULONG lastIn = 0, lastOut = 0;
     static bool first_net = true;
-    double down_kb = 0, up_kb = 0;
 
     ULONG dwSize = 0;
     GetIfTable(nullptr, &dwSize, FALSE);
@@ -348,6 +355,15 @@ void update_status_bar_cb(void* data) {
         first_net = false;
     }
     free(pIfTable);
+#else
+    std::ifstream statm("/proc/self/statm");
+    if (statm.is_open()) {
+        long pages = 0;
+        statm >> pages; // total program size
+        statm >> pages; // resident set size
+        ram_mb = (pages * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0);
+    }
+#endif
 
     time_t rawtime;
     time(&rawtime);

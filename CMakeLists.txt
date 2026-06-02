@@ -27,9 +27,10 @@ add_executable(Nynetify
 if(WIN32)
     target_sources(Nynetify PRIVATE src/app.rc)
     set_target_properties(Nynetify PROPERTIES WIN32_EXECUTABLE TRUE)
+    target_link_libraries(Nynetify PRIVATE psapi iphlpapi)
 endif()
 
-target_link_libraries(Nynetify ${FLTK_LIBRARIES} mpv psapi iphlpapi)
+target_link_libraries(Nynetify PRIVATE ${FLTK_LIBRARIES} mpv)
 
 # ── CPack (Linux packages) ──────────────────────────
 if(UNIX)
