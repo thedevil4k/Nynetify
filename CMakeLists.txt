@@ -21,11 +21,10 @@ add_executable(Nynetify
     src/PlayerController.cpp
     src/ViewManager.cpp
     src/AppCallbacks.cpp
-    src/SystemTray.cpp
 )
 
 if(WIN32)
-    target_sources(Nynetify PRIVATE src/app.rc)
+    target_sources(Nynetify PRIVATE src/app.rc src/SystemTray.cpp)
     set_target_properties(Nynetify PROPERTIES WIN32_EXECUTABLE TRUE)
     target_link_libraries(Nynetify PRIVATE psapi iphlpapi)
 endif()

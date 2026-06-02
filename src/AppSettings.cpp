@@ -1,6 +1,14 @@
 #include <fstream>
 #include <cstdlib>
+#include <cstring>
+#ifdef _WIN32
 #include <windows.h>
+#define NYN_PATH_SEP "\\"
+#else
+#include <unistd.h>
+#include <linux/limits.h>
+#define NYN_PATH_SEP "/"
+#endif
 #include "AppSettings.h"
 #include "Globals.h"
 
@@ -16,21 +24,40 @@ AppSettings settings;                     /* ← the one true instance */
 
 /* ── Default downloads path ──────────────────────── */
 std::string get_default_downloads_path() {
+#ifdef _WIN32
     const char* user = getenv("USERPROFILE");
     if (user) {
         return std::string(user) + "\\Downloads";
     }
     return "C:\\Downloads";
+#else
+    const char* home = getenv("HOME");
+    if (home) {
+        return std::string(home) + "/Downloads";
+    }
+    return "/tmp";
+#endif
 }
 
 /* ── Save ────────────────────────────────────────── */
 void save_settings() {
+#ifdef _WIN32
     char exePath[MAX_PATH];
     GetModuleFileNameA(nullptr, exePath, MAX_PATH);
     std::string path(exePath);
     size_t pos = path.find_last_of("\\/");
     if (pos != std::string::npos) path = path.substr(0, pos + 1);
     path += "settings.cfg";
+#else
+    char exePath[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    if (len < 0) return;
+    exePath[len] = '\0';
+    std::string path(exePath);
+    size_t pos = path.find_last_of('/');
+    if (pos != std::string::npos) path = path.substr(0, pos + 1);
+    path += "settings.cfg";
+#endif
 
     std::ofstream f(path);
     if (!f) return;
@@ -45,12 +72,23 @@ void save_settings() {
 /* ── Load ────────────────────────────────────────── */
 void load_settings() {
     settings.downloadPath = get_default_downloads_path();
+#ifdef _WIN32
     char exePath[MAX_PATH];
     GetModuleFileNameA(nullptr, exePath, MAX_PATH);
     std::string path(exePath);
     size_t pos = path.find_last_of("\\/");
     if (pos != std::string::npos) path = path.substr(0, pos + 1);
     path += "settings.cfg";
+#else
+    char exePath[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    if (len < 0) return;
+    exePath[len] = '\0';
+    std::string path(exePath);
+    size_t pos = path.find_last_of('/');
+    if (pos != std::string::npos) path = path.substr(0, pos + 1);
+    path += "settings.cfg";
+#endif
 
     std::ifstream f(path);
     if (!f) return;

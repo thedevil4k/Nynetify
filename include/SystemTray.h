@@ -1,11 +1,12 @@
 #pragma once
 #include <FL/Fl_Window.H>
 
-class SystemTray {
 #ifdef _WIN32
+
+class SystemTray {
     void* hwnd;
     void* old_proc;
-    void* nid_data;  // NOTIFYICONDATAA*
+    void* nid_data;
     void* hMenu;
     bool isQuitting;
     Fl_Window* fl_win;
@@ -18,10 +19,20 @@ class SystemTray {
 
     static long __stdcall wnd_proc(void*, unsigned int, unsigned long long, long long);
     static SystemTray* self;
-#endif
 
 public:
     SystemTray(Fl_Window* win);
     ~SystemTray();
     void quit();
 };
+
+#else
+
+class SystemTray {
+public:
+    SystemTray(Fl_Window*) {}
+    ~SystemTray() {}
+    void quit() {}
+};
+
+#endif

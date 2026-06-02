@@ -69,7 +69,9 @@ extern ModernChoice* searchFilter;
 extern Fl_Box* statusBar;
 extern Fl_Double_Window* eqWin;
 extern Fl_Double_Window* prefWin;
+#ifdef _WIN32
 extern void* self; // HANDLE from windows.h
+#endif
 
 // View groups
 extern Fl_Group* homeGroup;

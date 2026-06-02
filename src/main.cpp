@@ -79,7 +79,9 @@ ModernChoice* searchFilter = nullptr;
 Fl_Box* statusBar = nullptr;
 Fl_Double_Window* eqWin = nullptr;
 Fl_Double_Window* prefWin = nullptr;
+#ifdef _WIN32
 void* self = nullptr;   /* HANDLE from windows.h */
+#endif
 
 Fl_Group* homeGroup = nullptr;
 Fl_Group* searchGroup = nullptr;
