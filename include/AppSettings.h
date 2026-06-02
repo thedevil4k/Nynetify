@@ -3,6 +3,12 @@
 
 #include <string>
 
+#ifdef _WIN32
+#define NYN_PATH_SEP "\\"
+#else
+#define NYN_PATH_SEP "/"
+#endif
+
 /*
  * AppSettings: persistent user configuration
  *

@@ -3,11 +3,9 @@
 #include <cstring>
 #ifdef _WIN32
 #include <windows.h>
-#define NYN_PATH_SEP "\\"
 #else
 #include <unistd.h>
 #include <limits.h>
-#define NYN_PATH_SEP "/"
 #endif
 #include "AppSettings.h"
 #include "Globals.h"

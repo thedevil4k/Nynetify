@@ -661,10 +661,10 @@ void download_cb(Fl_Widget* w, void* data) {
 
     std::string dlPath = settings.downloadPath;
     if (dlPath.empty()) dlPath = get_default_downloads_path();
-    std::string filename = dlPath + "\\" + safe_author + " - " + safe_title + ".mp3";
+    std::string filename = dlPath + NYN_PATH_SEP + safe_author + " - " + safe_title + ".mp3";
     std::string url = "https://www.youtube.com/watch?v=" + video_id;
     std::string cmd = std::string(YT_DLP) + " -x --audio-format mp3 --no-playlist -o \""
-                      + filename + "\" \"" + url + "\" 2>NUL";
+                      + filename + "\" \"" + url + "\"" + NYN_NULL_REDIRECT;
 
     char status[512];
     snprintf(status, sizeof(status), lang->downloading, title.c_str());

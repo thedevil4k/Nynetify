@@ -12,6 +12,11 @@
 
 static const char* YT_DLP = "yt-dlp";
 static const char* YT_DLP_FAST = " --extractor-args \"youtube:skip=hls,dash;player_client=android\" --socket-timeout 5 --retries 1";
+#ifdef _WIN32
+static const char* NYN_NULL_REDIRECT = " 2>NUL";
+#else
+static const char* NYN_NULL_REDIRECT = " 2>/dev/null";
+#endif
 
 struct SearchResult {
     std::string title;
@@ -33,7 +38,7 @@ public:
         for (const auto& id : ids) {
             command += " \"https://www.youtube.com/watch?v=" + id + "\"";
         }
-        command += " 2>NUL";
+        command += NYN_NULL_REDIRECT;
 
         std::cout << "[DEBUG] Fetching metadata: " << command << std::endl;
         std::string output = execute(command);
@@ -97,7 +102,7 @@ public:
             command += " --geo-bypass-country " + region;
         }
 
-        command += " 2>NUL";
+        command += NYN_NULL_REDIRECT;
 
         std::cout << "[DEBUG] Executing search command: " << command << std::endl;
         std::string output = execute(command);
@@ -148,7 +153,7 @@ public:
         std::string url = "https://www.youtube.com/playlist?list=" + playlist_id;
         std::string command = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " \"" + url + "\""
-            + " --flat-playlist --ignore-config --print title --print uploader --print channel_id --print id --no-warnings 2>NUL";
+            + " --flat-playlist --ignore-config --print title --print uploader --print channel_id --print id --no-warnings" + NYN_NULL_REDIRECT;
 
         std::cout << "[DEBUG] Fetching playlist videos: " << command << std::endl;
         std::string output = execute(command);
@@ -187,7 +192,7 @@ public:
         std::string pl_url = "https://www.youtube.com/channel/" + channel_id + "/playlists";
         std::string cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " \"" + pl_url + "\""
-            + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings 2>NUL";
+            + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings" + NYN_NULL_REDIRECT;
         std::cout << "[DEBUG] Fetching channel playlists: " << cmd << std::endl;
         std::string output = execute(cmd);
         if (!output.empty()) {
@@ -213,7 +218,7 @@ public:
         std::string vid_url = "https://www.youtube.com/channel/" + channel_id + "/videos";
         cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " \"" + vid_url + "\""
-            + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings 2>NUL";
+            + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings" + NYN_NULL_REDIRECT;
         std::cout << "[DEBUG] Fetching channel videos: " << cmd << std::endl;
         output = execute(cmd);
         if (!output.empty()) {
@@ -249,12 +254,12 @@ public:
     static std::string get_channel_id(const std::string& video_id) {
         std::string cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " --ignore-config --print channel_id --no-playlist"
-            + " \"https://www.youtube.com/watch?v=" + video_id + "\" 2>NUL";
+            + " \"https://www.youtube.com/watch?v=" + video_id + "\"" + NYN_NULL_REDIRECT;
         return execute(cmd);
     }
 
     static std::string get_channel_avatar_url(const std::string& channel_id) {
-        std::string cmd = "curl -s \"https://www.youtube.com/channel/" + channel_id + "\" 2>NUL";
+        std::string cmd = std::string("curl -s \"https://www.youtube.com/channel/") + channel_id + "\"" + NYN_NULL_REDIRECT;
         std::string html = execute(cmd);
         std::string marker = "property=\"og:image\" content=\"";
         size_t pos = html.find(marker);
