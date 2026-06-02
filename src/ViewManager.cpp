@@ -40,8 +40,7 @@ void show_search_view() {
     searchGroup->show();
     playlistGroup->hide();
     if (resultsBrowser) {
-        resultsBrowser->position(220, 70);
-        resultsBrowser->size(760, 570);
+        resultsBrowser->resize(220, 70, 760, 570);
         resultsBrowser->show();
     }
     if (sidebarPlaylistList) sidebarPlaylistList->value(0);
@@ -52,8 +51,7 @@ void show_playlist_view(const std::string& playlist_name) {
     searchGroup->hide();
     playlistGroup->show();
     if (resultsBrowser) {
-        resultsBrowser->position(220, 220);
-        resultsBrowser->size(760, 420);
+        resultsBrowser->resize(220, 220, 760, 420);
         resultsBrowser->show();
     }
 
@@ -84,8 +82,7 @@ void show_favorites_view() {
     searchGroup->hide();
     playlistGroup->show();
     if (resultsBrowser) {
-        resultsBrowser->position(220, 220);
-        resultsBrowser->size(760, 420);
+        resultsBrowser->resize(220, 220, 760, 420);
         resultsBrowser->show();
     }
 
@@ -122,8 +119,7 @@ void show_youtube_playlist_view(const std::string& playlist_id,
     searchGroup->hide();
     playlistGroup->show();
 
-    resultsBrowser->position(220, 220);
-    resultsBrowser->size(760, 420);
+    resultsBrowser->resize(220, 220, 760, 420);
     resultsBrowser->show();
 
     playlistNameBox->copy_label(playlist_name.c_str());
@@ -211,8 +207,7 @@ void show_channel_view(const std::string& channel_id,
     searchGroup->hide();
     playlistGroup->show();
 
-    resultsBrowser->position(220, 220);
-    resultsBrowser->size(760, 420);
+    resultsBrowser->resize(220, 220, 760, 420);
     resultsBrowser->show();
 
     playlistNameBox->copy_label(channel_name.c_str());

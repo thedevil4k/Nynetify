@@ -43,6 +43,17 @@ jobs:
       - name: Build
         run: cmake --build build
 
+      - name: Bundle yt-dlp
+        run: |
+          mkdir -p package
+          YT_DLP_SRC=$(python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))")
+          if [ -f "$YT_DLP_SRC" ]; then
+            cp "$YT_DLP_SRC" package/yt-dlp.exe
+            echo "yt-dlp.exe bundled from $YT_DLP_SRC"
+          else
+            echo "WARNING: yt-dlp.exe not found at $YT_DLP_SRC"
+          fi
+
       - name: Package portable ZIP
         run: |
           New-Item -ItemType Directory -Force -Path package | Out-Null
@@ -59,10 +70,6 @@ jobs:
           foreach ($dll in $dlls) {
             Copy-Item "C:\msys64\mingw64\bin\$dll" package/ -ErrorAction SilentlyContinue
           }
-          # Bundle yt-dlp.exe from pip
-          $ytdlp = python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))" 2>$null
-          if ($ytdlp -and (Test-Path $ytdlp)) { Copy-Item $ytdlp package/yt-dlp.exe }
-          if (Test-Path package\yt-dlp.exe) {} else { Write-Host "yt-dlp.exe not found, skipping" }
           Compress-Archive -Path package\* -DestinationPath Nynetify-x64-portable.zip -Force
         shell: powershell
 
@@ -123,6 +130,17 @@ jobs:
       - name: Build
         run: cmake --build build
 
+      - name: Bundle yt-dlp
+        run: |
+          mkdir -p package
+          YT_DLP_SRC=$(python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))")
+          if [ -f "$YT_DLP_SRC" ]; then
+            cp "$YT_DLP_SRC" package/yt-dlp.exe
+            echo "yt-dlp.exe bundled from $YT_DLP_SRC"
+          else
+            echo "WARNING: yt-dlp.exe not found at $YT_DLP_SRC"
+          fi
+
       - name: Package portable ZIP
         run: |
           New-Item -ItemType Directory -Force -Path package | Out-Null
@@ -139,9 +157,6 @@ jobs:
           foreach ($dll in $dlls) {
             Copy-Item "C:\msys64\clangarm64\bin\$dll" package/ -ErrorAction SilentlyContinue
           }
-          $ytdlp = python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))" 2>$null
-          if ($ytdlp -and (Test-Path $ytdlp)) { Copy-Item $ytdlp package/yt-dlp.exe }
-          if (Test-Path package\yt-dlp.exe) {} else { Write-Host "yt-dlp.exe not found, skipping" }
           Compress-Archive -Path package\* -DestinationPath Nynetify-arm64-portable.zip -Force
         shell: powershell
 
