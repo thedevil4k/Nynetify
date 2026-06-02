@@ -45,28 +45,26 @@ jobs:
 
       - name: Package portable ZIP
         run: |
-          mkdir -p package
-          cp build/Nynetify.exe package/
-          cp /mingw64/bin/libmpv-2.dll package/
-          cp /mingw64/bin/libfltk-1.4.dll package/
-          cp /mingw64/bin/libfltk_images-1.4.dll package/
-          cp /mingw64/bin/libstdc++-6.dll package/
-          cp /mingw64/bin/libgcc_s_seh-1.dll package/
-          cp /mingw64/bin/libwinpthread-1.dll package/
-          cp /mingw64/bin/libpng16-16.dll package/
-          cp /mingw64/bin/libjpeg-8.dll package/
-          cp /mingw64/bin/zlib1.dll package/
-          cp /mingw64/bin/libbrotlicommon.dll package/
-          cp /mingw64/bin/libbrotlidec.dll package/
-          cp /mingw64/bin/libfreetype-6.dll package/
-          cp /mingw64/bin/libharfbuzz-0.dll package/
-          cp /mingw64/bin/libglib-2.0-0.dll package/
-          cp /mingw64/bin/libintl-8.dll package/
-          cp /mingw64/bin/libpcre2-8-0.dll package/
-          cp /mingw64/bin/libiconv-2.dll package/
-          cp "$(python -c 'import yt_dlp; print(yt_dlp.__file__)' | sed 's|__init__\\.py||')__main__.exe" package/yt-dlp.exe || true
-          cd package && 7z a ../Nynetify-x64-portable.zip *
-        shell: msys2 {0}
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item build/Nynetify.exe package/
+          $dlls = @(
+            "libmpv-2.dll", "libfltk-1.4.dll", "libfltk_images-1.4.dll",
+            "libstdc++-6.dll", "libgcc_s_seh-1.dll", "libwinpthread-1.dll",
+            "libpng16-16.dll", "libjpeg-8.dll", "zlib1.dll",
+            "libbrotlicommon.dll", "libbrotlidec.dll",
+            "libfreetype-6.dll", "libharfbuzz-0.dll",
+            "libglib-2.0-0.dll", "libintl-8.dll",
+            "libpcre2-8-0.dll", "libiconv-2.dll"
+          )
+          foreach ($dll in $dlls) {
+            Copy-Item "C:\msys64\mingw64\bin\$dll" package/ -ErrorAction SilentlyContinue
+          }
+          # Bundle yt-dlp.exe from pip
+          $ytdlp = python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))" 2>$null
+          if ($ytdlp -and (Test-Path $ytdlp)) { Copy-Item $ytdlp package/yt-dlp.exe }
+          if (Test-Path package\yt-dlp.exe) {} else { Write-Host "yt-dlp.exe not found, skipping" }
+          Compress-Archive -Path package\* -DestinationPath Nynetify-x64-portable.zip -Force
+        shell: powershell
 
       - name: Install NSIS
         run: choco install nsis -y
@@ -74,8 +72,8 @@ jobs:
 
       - name: Build NSIS installer
         run: |
-          cp packaging/windows/installer.nsi package/
-          cd package
+          Copy-Item packaging\windows\installer.nsi package\
+          Set-Location package
           makensis /DARCH=x64 /DMSYS2_BIN=C:/msys64/mingw64/bin installer.nsi
         shell: powershell
 
@@ -127,28 +125,25 @@ jobs:
 
       - name: Package portable ZIP
         run: |
-          mkdir -p package
-          cp build/Nynetify.exe package/
-          cp /clangarm64/bin/libmpv-2.dll package/
-          cp /clangarm64/bin/libfltk-1.4.dll package/
-          cp /clangarm64/bin/libfltk_images-1.4.dll package/
-          cp /clangarm64/bin/libstdc++-6.dll package/
-          cp /clangarm64/bin/libgcc_s_seh-1.dll package/
-          cp /clangarm64/bin/libwinpthread-1.dll package/
-          cp /clangarm64/bin/libpng16-16.dll package/
-          cp /clangarm64/bin/libjpeg-8.dll package/
-          cp /clangarm64/bin/zlib1.dll package/
-          cp /clangarm64/bin/libbrotlicommon.dll package/
-          cp /clangarm64/bin/libbrotlidec.dll package/
-          cp /clangarm64/bin/libfreetype-6.dll package/
-          cp /clangarm64/bin/libharfbuzz-0.dll package/
-          cp /clangarm64/bin/libglib-2.0-0.dll package/
-          cp /clangarm64/bin/libintl-8.dll package/
-          cp /clangarm64/bin/libpcre2-8-0.dll package/
-          cp /clangarm64/bin/libiconv-2.dll package/
-          cp "$(python -c 'import yt_dlp; print(yt_dlp.__file__)' | sed 's|__init__\\.py||')__main__.exe" package/yt-dlp.exe || true
-          cd package && 7z a ../Nynetify-arm64-portable.zip *
-        shell: msys2 {0}
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item build/Nynetify.exe package/
+          $dlls = @(
+            "libmpv-2.dll", "libfltk-1.4.dll", "libfltk_images-1.4.dll",
+            "libstdc++-6.dll", "libgcc_s_seh-1.dll", "libwinpthread-1.dll",
+            "libpng16-16.dll", "libjpeg-8.dll", "zlib1.dll",
+            "libbrotlicommon.dll", "libbrotlidec.dll",
+            "libfreetype-6.dll", "libharfbuzz-0.dll",
+            "libglib-2.0-0.dll", "libintl-8.dll",
+            "libpcre2-8-0.dll", "libiconv-2.dll"
+          )
+          foreach ($dll in $dlls) {
+            Copy-Item "C:\msys64\clangarm64\bin\$dll" package/ -ErrorAction SilentlyContinue
+          }
+          $ytdlp = python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))" 2>$null
+          if ($ytdlp -and (Test-Path $ytdlp)) { Copy-Item $ytdlp package/yt-dlp.exe }
+          if (Test-Path package\yt-dlp.exe) {} else { Write-Host "yt-dlp.exe not found, skipping" }
+          Compress-Archive -Path package\* -DestinationPath Nynetify-arm64-portable.zip -Force
+        shell: powershell
 
       - name: Install NSIS
         run: choco install nsis -y
@@ -156,8 +151,8 @@ jobs:
 
       - name: Build NSIS installer
         run: |
-          cp packaging/windows/installer.nsi package/
-          cd package
+          Copy-Item packaging\windows\installer.nsi package\
+          Set-Location package
           makensis /DARCH=arm64 /DMSYS2_BIN=C:/msys64/clangarm64/bin installer.nsi
         shell: powershell
 

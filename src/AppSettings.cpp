@@ -6,7 +6,7 @@
 #define NYN_PATH_SEP "\\"
 #else
 #include <unistd.h>
-#include <linux/limits.h>
+#include <limits.h>
 #define NYN_PATH_SEP "/"
 #endif
 #include "AppSettings.h"
