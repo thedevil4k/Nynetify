@@ -32,11 +32,9 @@ jobs:
 
       - name: Install yt-dlp
         run: pip install yt-dlp
-        shell: powershell
 
       - name: Convert icon
         run: python -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
-        shell: powershell
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -115,11 +113,9 @@ jobs:
 
       - name: Install yt-dlp
         run: pip install yt-dlp
-        shell: powershell
 
       - name: Convert icon
         run: python -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
-        shell: powershell
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

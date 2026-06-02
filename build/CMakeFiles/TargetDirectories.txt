@@ -1,3 +1,0 @@
-D:/Nynetify/build/CMakeFiles/Nynetify.dir
-D:/Nynetify/build/CMakeFiles/edit_cache.dir
-D:/Nynetify/build/CMakeFiles/rebuild_cache.dir
