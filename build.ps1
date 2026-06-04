@@ -54,10 +54,10 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "Build Successful!" -ForegroundColor Green
     
     # Move binary to output folder (Release subfolder is common in MSVC)
-    $ExePath = Get-ChildItem -Path . -Filter "YTfy.exe" -Recurse | Select-Object -First 1
+    $ExePath = Get-ChildItem -Path . -Filter "Nynetify.exe" -Recurse | Select-Object -First 1
     if ($ExePath) {
         Copy-Item -Path $ExePath.FullName -Destination $OutputDir
-        Write-Host "Binary copied to: $(Join-Path $OutputDir YTfy.exe)" -ForegroundColor Green
+        Write-Host "Binary copied to: $(Join-Path $OutputDir Nynetify.exe)" -ForegroundColor Green
     }
 
     # Copy build residues (the entire build folder content) to output/residues

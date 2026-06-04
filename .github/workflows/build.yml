@@ -54,23 +54,19 @@ jobs:
             echo "WARNING: yt-dlp.exe not found at $YT_DLP_SRC"
           fi
 
-      - name: Package portable ZIP
+      - name: Copy DLL dependencies
         run: |
-          New-Item -ItemType Directory -Force -Path package | Out-Null
-          Copy-Item build/Nynetify.exe package/
-          $dlls = @(
-            "libmpv-2.dll", "libfltk-1.4.dll", "libfltk_images-1.4.dll",
-            "libstdc++-6.dll", "libgcc_s_seh-1.dll", "libwinpthread-1.dll",
-            "libpng16-16.dll", "libjpeg-8.dll", "zlib1.dll",
-            "libbrotlicommon.dll", "libbrotlidec.dll",
-            "libfreetype-6.dll", "libharfbuzz-0.dll",
-            "libglib-2.0-0.dll", "libintl-8.dll",
-            "libpcre2-8-0.dll", "libiconv-2.dll"
-          )
-          foreach ($dll in $dlls) {
-            Copy-Item "C:\msys64\mingw64\bin\$dll" package/ -ErrorAction SilentlyContinue
-          }
-          Compress-Archive -Path package\* -DestinationPath Nynetify-x64-portable.zip -Force
+          mkdir -p package
+          cp build/Nynetify.exe package/
+          ldd build/Nynetify.exe | grep -E -i "/mingw64/bin/" | awk '{print $3}' | while read -r dll_path; do
+            if [ -f "$dll_path" ]; then
+              cp "$dll_path" package/
+              echo "Copied $dll_path to package/"
+            fi
+          done
+
+      - name: Package portable ZIP
+        run: Compress-Archive -Path package\* -DestinationPath Nynetify-x64-portable.zip -Force
         shell: powershell
 
       - name: Install NSIS
@@ -81,7 +77,14 @@ jobs:
         run: |
           Copy-Item packaging\windows\installer.nsi package\
           Set-Location package
-          makensis /DARCH=x64 /DMSYS2_BIN=C:/msys64/mingw64/bin installer.nsi
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+              $makensis = "C:\Program Files\NSIS\makensis.exe"
+          }
+          if (-not (Test-Path $makensis)) {
+              $makensis = "makensis"
+          }
+          & $makensis /DARCH=x64 installer.nsi
         shell: powershell
 
       - uses: actions/upload-artifact@v4
@@ -141,23 +144,19 @@ jobs:
             echo "WARNING: yt-dlp.exe not found at $YT_DLP_SRC"
           fi
 
-      - name: Package portable ZIP
+      - name: Copy DLL dependencies
         run: |
-          New-Item -ItemType Directory -Force -Path package | Out-Null
-          Copy-Item build/Nynetify.exe package/
-          $dlls = @(
-            "libmpv-2.dll", "libfltk-1.4.dll", "libfltk_images-1.4.dll",
-            "libstdc++-6.dll", "libgcc_s_seh-1.dll", "libwinpthread-1.dll",
-            "libpng16-16.dll", "libjpeg-8.dll", "zlib1.dll",
-            "libbrotlicommon.dll", "libbrotlidec.dll",
-            "libfreetype-6.dll", "libharfbuzz-0.dll",
-            "libglib-2.0-0.dll", "libintl-8.dll",
-            "libpcre2-8-0.dll", "libiconv-2.dll"
-          )
-          foreach ($dll in $dlls) {
-            Copy-Item "C:\msys64\clangarm64\bin\$dll" package/ -ErrorAction SilentlyContinue
-          }
-          Compress-Archive -Path package\* -DestinationPath Nynetify-arm64-portable.zip -Force
+          mkdir -p package
+          cp build/Nynetify.exe package/
+          ldd build/Nynetify.exe | grep -E -i "/clangarm64/bin/" | awk '{print $3}' | while read -r dll_path; do
+            if [ -f "$dll_path" ]; then
+              cp "$dll_path" package/
+              echo "Copied $dll_path to package/"
+            fi
+          done
+
+      - name: Package portable ZIP
+        run: Compress-Archive -Path package\* -DestinationPath Nynetify-arm64-portable.zip -Force
         shell: powershell
 
       - name: Install NSIS
@@ -168,7 +167,14 @@ jobs:
         run: |
           Copy-Item packaging\windows\installer.nsi package\
           Set-Location package
-          makensis /DARCH=arm64 /DMSYS2_BIN=C:/msys64/clangarm64/bin installer.nsi
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+              $makensis = "C:\Program Files\NSIS\makensis.exe"
+          }
+          if (-not (Test-Path $makensis)) {
+              $makensis = "makensis"
+          }
+          & $makensis /DARCH=arm64 installer.nsi
         shell: powershell
 
       - uses: actions/upload-artifact@v4

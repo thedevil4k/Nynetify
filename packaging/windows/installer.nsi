@@ -37,7 +37,7 @@ Page components
 Page directory
 Page instfiles
 UninstPage uninstConfirm
-UnPage instfiles
+UninstPage instfiles
 
 ; ── Files ──
 Section "Nynetify" SEC_APP
@@ -46,29 +46,11 @@ Section "Nynetify" SEC_APP
 
     File "Nynetify.exe"
 
-    ; MSYS2 runtime DLLs
-    File "${MSYS2_BIN}\libmpv-2.dll"
-    File "${MSYS2_BIN}\libfltk-1.4.dll"
-    File "${MSYS2_BIN}\libfltk_images-1.4.dll"
-    File "${MSYS2_BIN}\libstdc++-6.dll"
-    File "${MSYS2_BIN}\libgcc_s_seh-1.dll"
-    File "${MSYS2_BIN}\libwinpthread-1.dll"
-    File "${MSYS2_BIN}\libpng16-16.dll"
-    File "${MSYS2_BIN}\libjpeg-8.dll"
-    File "${MSYS2_BIN}\zlib1.dll"
-    File "${MSYS2_BIN}\libbrotlicommon.dll"
-    File "${MSYS2_BIN}\libbrotlidec.dll"
-    File "${MSYS2_BIN}\libfreetype-6.dll"
-    File "${MSYS2_BIN}\libharfbuzz-0.dll"
-    File "${MSYS2_BIN}\libglib-2.0-0.dll"
-    File "${MSYS2_BIN}\libintl-8.dll"
-    File "${MSYS2_BIN}\libpcre2-8-0.dll"
-    File "${MSYS2_BIN}\libiconv-2.dll"
+    ; MSYS2 runtime DLLs (dynamically resolved and copied by workflow)
+    File "*.dll"
 
     ; yt-dlp
-    !if "${YT_DLP_PATH}" != ""
-        File "${YT_DLP_PATH}"
-    !endif
+    File /nonfatal "yt-dlp.exe"
 
     ; Create shortcuts
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
@@ -97,23 +79,7 @@ SectionEnd
 ; ── Uninstaller ──
 Section Uninstall
     Delete "$INSTDIR\Nynetify.exe"
-    Delete "$INSTDIR\libmpv-2.dll"
-    Delete "$INSTDIR\libfltk-1.4.dll"
-    Delete "$INSTDIR\libfltk_images-1.4.dll"
-    Delete "$INSTDIR\libstdc++-6.dll"
-    Delete "$INSTDIR\libgcc_s_seh-1.dll"
-    Delete "$INSTDIR\libwinpthread-1.dll"
-    Delete "$INSTDIR\libpng16-16.dll"
-    Delete "$INSTDIR\libjpeg-8.dll"
-    Delete "$INSTDIR\zlib1.dll"
-    Delete "$INSTDIR\libbrotlicommon.dll"
-    Delete "$INSTDIR\libbrotlidec.dll"
-    Delete "$INSTDIR\libfreetype-6.dll"
-    Delete "$INSTDIR\libharfbuzz-0.dll"
-    Delete "$INSTDIR\libglib-2.0-0.dll"
-    Delete "$INSTDIR\libintl-8.dll"
-    Delete "$INSTDIR\libpcre2-8-0.dll"
-    Delete "$INSTDIR\libiconv-2.dll"
+    Delete "$INSTDIR\*.dll"
     Delete "$INSTDIR\yt-dlp.exe"
 
     Delete "$INSTDIR\Uninstall.exe"
