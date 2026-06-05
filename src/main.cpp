@@ -29,6 +29,7 @@
 #include <vector>
 #include <ctime>
 #include <cstdlib>
+#include <filesystem>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -130,10 +131,38 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
         self = GetCurrentProcess();
 #endif
-        PlaylistManager::ensure_directories();
+        try {
+            PlaylistManager::ensure_directories();
+        } catch (...) {
+#ifdef _WIN32
+            const char* appdata = getenv("APPDATA");
+            if (appdata) {
+                std::filesystem::path appDir = std::filesystem::path(appdata) / "Nynetify";
+                std::filesystem::create_directories(appDir);
+                std::filesystem::current_path(appDir);
+                PlaylistManager::ensure_directories();
+            } else {
+                throw;
+            }
+#else
+            const char* home = getenv("HOME");
+            if (home) {
+                std::filesystem::path appDir = std::filesystem::path(home) / ".config" / "nynetify";
+                std::filesystem::create_directories(appDir);
+                std::filesystem::current_path(appDir);
+                PlaylistManager::ensure_directories();
+            } else {
+                throw;
+            }
+#endif
+        }
         detect_region();
     } catch (const std::exception& e) {
+#ifdef _WIN32
+        MessageBoxA(nullptr, e.what(), "Nynetify Startup Error", MB_OK | MB_ICONERROR);
+#else
         std::cerr << "Error: " << e.what() << std::endl;
+#endif
         return 1;
     }
 

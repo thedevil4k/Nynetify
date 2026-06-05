@@ -58,10 +58,10 @@ jobs:
         run: |
           mkdir -p package
           cp build/Nynetify.exe package/
-          ldd build/Nynetify.exe | grep -E -i "/mingw64/bin/" | awk '{print $3}' | while read -r dll_path; do
-            if [ -f "$dll_path" ]; then
-              cp "$dll_path" package/
-              echo "Copied $dll_path to package/"
+          ldd build/Nynetify.exe | while read -r name arrow path addr; do
+            if [[ "$path" == /mingw64/bin/* && -f "$path" ]]; then
+              cp "$path" package/
+              echo "Copied $path to package/"
             fi
           done
 
@@ -148,10 +148,10 @@ jobs:
         run: |
           mkdir -p package
           cp build/Nynetify.exe package/
-          ldd build/Nynetify.exe | grep -E -i "/clangarm64/bin/" | awk '{print $3}' | while read -r dll_path; do
-            if [ -f "$dll_path" ]; then
-              cp "$dll_path" package/
-              echo "Copied $dll_path to package/"
+          ldd build/Nynetify.exe | while read -r name arrow path addr; do
+            if [[ "$path" == /clangarm64/bin/* && -f "$path" ]]; then
+              cp "$path" package/
+              echo "Copied $path to package/"
             fi
           done
 
@@ -222,13 +222,14 @@ jobs:
 
   # ── Linux x86-64 (RPM) ──────────────────────────
   linux-rpm:
-    runs-on: fedora-40
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          sudo dnf install -y cmake gcc-c++ fltk-devel mpv-libs-devel python3-pip python3-pillow rpm-build
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libfltk1.3-dev libmpv-dev python3-pip python3-pil rpm
           pip3 install yt-dlp --break-system-packages
 
       - name: Convert icon (placeholder for Linux)
