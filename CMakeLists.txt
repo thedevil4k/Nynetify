@@ -41,12 +41,20 @@ if(UNIX)
     set(CPACK_PACKAGE_VENDOR "Nynetify")
 
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "mpv, yt-dlp")
-    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
-    set(CPACK_DEBIAN_FILE_NAME "nynetify-${PROJECT_VERSION}-amd64.deb")
-
     set(CPACK_RPM_PACKAGE_REQUIRES "mpv, yt-dlp")
-    set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
-    set(CPACK_RPM_FILE_NAME "nynetify-${PROJECT_VERSION}-x86_64.rpm")
+
+    # Detect architecture dynamically based on compiler flags
+    if(CMAKE_C_FLAGS MATCHES "-m32" OR CMAKE_CXX_FLAGS MATCHES "-m32")
+        set(ARCH "i386")
+    else()
+        set(ARCH "amd64")
+    endif()
+
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${ARCH}")
+    set(CPACK_DEBIAN_FILE_NAME "nynetify-${PROJECT_VERSION}-${ARCH}.deb")
+
+    set(CPACK_RPM_PACKAGE_ARCHITECTURE "${ARCH}")
+    set(CPACK_RPM_FILE_NAME "nynetify-${PROJECT_VERSION}-${ARCH}.rpm")
 
     include(CPack)
 endif()

@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <ctime>
+#include <filesystem>
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include "AppCallbacks.h"
@@ -671,8 +672,16 @@ void download_cb(Fl_Widget* w, void* data) {
     if (statusBar) { statusBar->copy_label(status); statusBar->redraw(); }
 
     auto* titleCopy = new std::string(title);
-    std::thread([cmd, titleCopy]() {
+    auto* filenameCopy = new std::string(filename);
+    std::thread([cmd, titleCopy, filenameCopy]() {
         std::system(cmd.c_str());
+        
+        // Clean up the original webm file after conversion
+        std::string webm_file = filenameCopy->substr(0, filenameCopy->length() - 4) + ".webm";
+        if (std::filesystem::exists(webm_file)) {
+            std::filesystem::remove(webm_file);
+        }
+        
         Fl::awake([](void* d) {
             auto* t = (std::string*)d;
             if (statusBar) {
@@ -683,6 +692,7 @@ void download_cb(Fl_Widget* w, void* data) {
             }
             delete t;
         }, titleCopy);
+        delete filenameCopy;
     }).detach();
 }
 
