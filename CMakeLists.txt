@@ -43,11 +43,12 @@ if(UNIX)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "mpv, yt-dlp")
     set(CPACK_RPM_PACKAGE_REQUIRES "mpv, yt-dlp")
 
-    # Detect architecture dynamically based on compiler flags
-    if(CMAKE_C_FLAGS MATCHES "-m32" OR CMAKE_CXX_FLAGS MATCHES "-m32")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i[3-6]86|x86)$")
         set(ARCH "i386")
-    else()
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|aarch64|arm64)$")
         set(ARCH "amd64")
+    else()
+        set(ARCH "${CMAKE_SYSTEM_PROCESSOR}")
     endif()
 
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${ARCH}")

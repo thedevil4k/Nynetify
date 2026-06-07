@@ -14,7 +14,7 @@ Search YouTube, browse playlists and channels, create local playlists, and downl
 - **Equalizer** — 10-band EQ with toggle
 - **Multi-language** — English / Spanish interface with runtime toggle
 - **Custom dark theme** — dark UI with rounded modern widgets
-- **Cross-platform** — Windows x64, Windows ARM64, Linux (DEB/RPM)
+- **Cross-platform** — Windows x64, Windows ARM64, Linux x86-64 and i386 (DEB/RPM)
 
 ## Downloads
 
@@ -23,6 +23,7 @@ Search YouTube, browse playlists and channels, create local playlists, and downl
 | Windows | x86-64 | [Installer](https://github.com/anomalyco/Nynetify/releases/latest) / [Portable ZIP](https://github.com/anomalyco/Nynetify/releases/latest) |
 | Windows | ARM64 | [Installer](https://github.com/anomalyco/Nynetify/releases/latest) / [Portable ZIP](https://github.com/anomalyco/Nynetify/releases/latest) |
 | Linux | x86-64 | [.deb](https://github.com/anomalyco/Nynetify/releases/latest) / [.rpm](https://github.com/anomalyco/Nynetify/releases/latest) |
+| Linux | i386 | [.deb](https://github.com/anomalyco/Nynetify/releases/latest) / [.rpm](https://github.com/anomalyco/Nynetify/releases/latest) |
 
 Grab the latest build from the [Releases page](https://github.com/anomalyco/Nynetify/releases/latest) or the Actions tab.
 
