@@ -89,6 +89,7 @@ struct Lang {
     const char* max_buffer_label;
     const char* fetch_size_label;
     const char* batch_label;
+    const char* enable_antialiasing;
 
     // EQ
     const char* enable_eq;
@@ -187,6 +188,7 @@ inline Lang LANG_EN = {
     "Max Buffer Size: %d MB",
     "Fetch size: %d results",
     "Batch: +%d per scroll",
+    " Enable Antialiasing",
     // EQ
     " ENABLE EQ",
     // Download
@@ -281,6 +283,7 @@ inline Lang LANG_ES = {
     "Tamano maximo de buffer: %d MB",
     "Tamano de busqueda: %d resultados",
     "Lote: +%d por scroll",
+    " Activar Antialiasing",
     // EQ
     " ACTIVAR EQ",
     // Download

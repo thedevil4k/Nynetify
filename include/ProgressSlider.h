@@ -4,6 +4,9 @@
 #include <FL/Fl_Slider.H>
 #include <FL/fl_draw.H>
 #include "Theme.h"
+#include "AppSettings.h"
+
+extern AppSettings settings;
 
 class ProgressSlider : public Fl_Slider {
     double buffered_value = 0;
@@ -25,6 +28,7 @@ public:
     }
 
     void draw() override {
+        fl_antialias(settings.enableAntialiasing ? 1 : 0);
         int x_val = x(), y_val = y(), w_val = w(), h_val = h();
 
         double max_val = maximum();

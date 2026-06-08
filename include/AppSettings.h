@@ -22,6 +22,7 @@ struct AppSettings {
     int  bufferSizeMB   = 2;
     int  initialFetchSize = 50;
     int  scrollBatchSize = 2;
+    bool enableAntialiasing = true;
     std::string downloadPath;
 };
 

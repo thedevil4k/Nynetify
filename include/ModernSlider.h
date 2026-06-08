@@ -6,6 +6,9 @@
 #include <FL/Fl.H>
 #include <algorithm>
 #include "Theme.h"
+#include "AppSettings.h"
+
+extern AppSettings settings;
 
 class ModernSlider : public Fl_Slider {
 public:
@@ -56,6 +59,7 @@ protected:
     }
 
     void draw() override {
+        fl_antialias(settings.enableAntialiasing ? 1 : 0);
         int sx = x(), sy = y(), sw = w(), sh = h();
         bool horiz = is_horiz();
 

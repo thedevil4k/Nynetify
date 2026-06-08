@@ -4,6 +4,9 @@
 #include <FL/Fl_Choice.H>
 #include <FL/fl_draw.H>
 #include "Theme.h"
+#include "AppSettings.h"
+
+extern AppSettings settings;
 
 class ModernChoice : public Fl_Choice {
 public:
@@ -18,6 +21,7 @@ public:
 
 protected:
     void draw() override {
+        fl_antialias(settings.enableAntialiasing ? 1 : 0);
         bool is_below = (Fl::belowmouse() == this);
         bool is_pushed = (Fl::pushed() == this);
 

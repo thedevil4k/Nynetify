@@ -20,6 +20,7 @@ CircularButton::CircularButton(int x, int y, int w, int h, const char* label)
 }
 
 void CircularButton::draw() {
+    fl_antialias(settings.enableAntialiasing ? 1 : 0);
     bool is_below  = (Fl::belowmouse() == this);
     bool is_pushed = value() || (Fl::pushed() == this && is_below);
 
@@ -64,6 +65,7 @@ HeartButton::HeartButton(int x, int y, int w, int h) : Fl_Button(x, y, w, h, "")
 }
 
 void HeartButton::draw() {
+    fl_antialias(settings.enableAntialiasing ? 1 : 0);
     bool is_below = (Fl::belowmouse() == this);
     fl_color(active ? Theme::ACCENT : (is_below ? Theme::TEXT_PRIMARY : Theme::TEXT_SECONDARY));
     fl_font(FL_HELVETICA, 20);

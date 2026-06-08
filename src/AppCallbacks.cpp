@@ -541,7 +541,7 @@ void scroll_batch_cb(Fl_Widget* w, void* data) {
 void open_prefs_window_cb(Fl_Widget* w, void* data) {
     if (prefWin) { prefWin->show(); return; }
 
-    prefWin = new Fl_Double_Window(300, 400, lang->settings_title);
+    prefWin = new Fl_Double_Window(300, 440, lang->settings_title);
     prefWin->color(Theme::SIDEBAR);
     if (Fl::first_window())
         prefWin->position(Fl::first_window()->x() + (Fl::first_window()->w() - prefWin->w()) / 2,
@@ -557,7 +557,17 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
     statusToggle->value(settings.showStatusBar ? 1 : 0);
     statusToggle->callback(status_toggle_cb);
 
-    auto* bufLabel = new Fl_Box(20, 110, 260, 20);
+    auto* aaToggle = new Fl_Check_Button(20, 100, 260, 30, lang->enable_antialiasing);
+    aaToggle->labelcolor(Theme::TEXT_PRIMARY);
+    aaToggle->value(settings.enableAntialiasing ? 1 : 0);
+    aaToggle->callback([](Fl_Widget* w, void*) {
+        auto* btn = (Fl_Check_Button*)w;
+        settings.enableAntialiasing = btn->value() != 0;
+        save_settings();
+        if (Fl::first_window()) Fl::first_window()->redraw();
+    });
+
+    auto* bufLabel = new Fl_Box(20, 150, 260, 20);
     bufLabel->labelcolor(Theme::TEXT_SECONDARY);
     bufLabel->labelsize(12);
     bufLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
@@ -565,47 +575,47 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
     snprintf(initBuf, sizeof(initBuf), lang->max_buffer_label, settings.bufferSizeMB);
     bufLabel->copy_label(initBuf);
 
-    auto* bufSlider = new ModernSlider(20, 135, 260, 20);
+    auto* bufSlider = new ModernSlider(20, 175, 260, 20);
     bufSlider->type(FL_HOR_SLIDER);
     bufSlider->bounds(1, 100);
     bufSlider->step(1);
     bufSlider->value((double)settings.bufferSizeMB);
     bufSlider->callback(buffer_cb, bufLabel);
 
-    auto* fetchLabel = new Fl_Box(20, 175, 260, 20);
+    auto* fetchLabel = new Fl_Box(20, 215, 260, 20);
     fetchLabel->labelcolor(Theme::TEXT_SECONDARY);
     fetchLabel->labelsize(12);
     fetchLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     snprintf(initBuf, sizeof(initBuf), lang->fetch_size_label, settings.initialFetchSize);
     fetchLabel->copy_label(initBuf);
 
-    auto* fetchSlider = new ModernSlider(20, 200, 260, 20);
+    auto* fetchSlider = new ModernSlider(20, 240, 260, 20);
     fetchSlider->type(FL_HOR_SLIDER);
     fetchSlider->bounds(20, 200);
     fetchSlider->step(10);
     fetchSlider->value((double)settings.initialFetchSize);
     fetchSlider->callback(fetch_size_cb, fetchLabel);
 
-    auto* batchLabel = new Fl_Box(20, 240, 260, 20);
+    auto* batchLabel = new Fl_Box(20, 280, 260, 20);
     batchLabel->labelcolor(Theme::TEXT_SECONDARY);
     batchLabel->labelsize(12);
     batchLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     snprintf(initBuf, sizeof(initBuf), lang->batch_label, settings.scrollBatchSize);
     batchLabel->copy_label(initBuf);
 
-    auto* batchSlider = new ModernSlider(20, 265, 260, 20);
+    auto* batchSlider = new ModernSlider(20, 305, 260, 20);
     batchSlider->type(FL_HOR_SLIDER);
     batchSlider->bounds(1, 10);
     batchSlider->step(1);
     batchSlider->value((double)settings.scrollBatchSize);
     batchSlider->callback(scroll_batch_cb, batchLabel);
 
-    auto* dlLabel = new Fl_Box(20, 305, 260, 20, lang->download_path);
+    auto* dlLabel = new Fl_Box(20, 345, 260, 20, lang->download_path);
     dlLabel->labelcolor(Theme::TEXT_SECONDARY);
     dlLabel->labelsize(12);
     dlLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-    auto* dlInput = new Fl_Input(20, 325, 205, 25);
+    auto* dlInput = new Fl_Input(20, 365, 205, 25);
     dlInput->value(settings.downloadPath.c_str());
     dlInput->textcolor(Theme::TEXT_PRIMARY);
     dlInput->color(Theme::HOVER);
@@ -616,7 +626,7 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
         save_settings();
     });
 
-    auto* browseBtn = new ModernButton(230, 325, 50, 25, lang->browse);
+    auto* browseBtn = new ModernButton(230, 365, 50, 25, lang->browse);
     browseBtn->color(Theme::HOVER);
     browseBtn->labelcolor(Theme::TEXT_PRIMARY);
     browseBtn->labelsize(11);
