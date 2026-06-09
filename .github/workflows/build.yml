@@ -198,7 +198,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential libfltk1.3-dev libmpv-dev python3-pip python3-pil
+          sudo apt-get install -y cmake build-essential pkg-config libfltk1.3-dev libmpv-dev python3-pip python3-pil
           pip3 install yt-dlp --break-system-packages
 
       - name: Convert icon (placeholder for Linux)
@@ -228,7 +228,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo dnf install -y cmake gcc-c++ fltk-devel mpv-libs-devel python3-pip python3-pillow rpm-build
+          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-libs-devel python3-pip python3-pillow rpm-build
           pip3 install yt-dlp --break-system-packages
 
       - name: Convert icon (placeholder for Linux)
@@ -262,34 +262,37 @@ jobs:
           sudo apt-get install -y \
             gcc-multilib g++-multilib \
             libfltk1.3-dev:i386 \
-            cmake build-essential \
+            libmpv-dev \
+            cmake build-essential pkg-config \
             python3-pip python3-pil rpm
           pip3 install yt-dlp --break-system-packages
 
-      - name: Download and extract 32-bit libmpv
+      - name: Download and install 32-bit libmpv
         run: |
-          mkdir -p mpv-i386
-          wget http://ftp.de.debian.org/debian/pool/main/m/mpv/libmpv2_0.35.1-4_i386.deb
-          dpkg-deb -x libmpv2_0.35.1-4_i386.deb mpv-i386
-          ln -s libmpv.so.2 mpv-i386/usr/lib/i386-linux-gnu/libmpv.so
+          # libmpv-dev:i386 is not in Ubuntu 24.04 repos.
+          # Download the Debian Bookworm i386 runtime deb and install the .so
+          # to /usr/lib/i386-linux-gnu/ so the -m32 linker finds it automatically.
+          wget -q https://deb.debian.org/debian/pool/main/m/mpv/libmpv2_0.35.1-4_i386.deb
+          dpkg-deb -x libmpv2_0.35.1-4_i386.deb /tmp/mpv-i386
+          sudo cp /tmp/mpv-i386/usr/lib/i386-linux-gnu/libmpv.so.2 /usr/lib/i386-linux-gnu/
+          sudo ln -sf libmpv.so.2 /usr/lib/i386-linux-gnu/libmpv.so
 
       - name: Convert icon (placeholder for Linux)
         run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 
       - name: Configure 32-bit
         env:
-          PKG_CONFIG_PATH: /usr/lib/i386-linux-gnu/pkgconfig
+          # PKG_CONFIG_LIBDIR completely replaces default search path so
+          # pkg_check_modules(FLTK) resolves exclusively 32-bit libraries.
+          PKG_CONFIG_LIBDIR: /usr/lib/i386-linux-gnu/pkgconfig
         run: |
           cmake -B build32 -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32 \
-            -DCMAKE_EXE_LINKER_FLAGS=-m32 -DCMAKE_SHARED_LINKER_FLAGS=-m32 \
+            -DCMAKE_EXE_LINKER_FLAGS=-m32 \
+            -DCMAKE_SHARED_LINKER_FLAGS=-m32 \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=i386 \
-            -DCPACK_RPM_PACKAGE_ARCHITECTURE=i686 \
-            -DCMAKE_LIBRARY_ARCHITECTURE=i386-linux-gnu \
-            -DCMAKE_PREFIX_PATH="/usr/lib/i386-linux-gnu;${{ github.workspace }}/mpv-i386/usr" \
-            -DCMAKE_LIBRARY_PATH="${{ github.workspace }}/mpv-i386/usr/lib/i386-linux-gnu" \
-            -DFLTK_DIR=/usr/lib/i386-linux-gnu/cmake/fltk
+            -DCPACK_RPM_PACKAGE_ARCHITECTURE=i686
 
       - name: Build 32-bit
         run: cmake --build build32
