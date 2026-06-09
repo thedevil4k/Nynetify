@@ -222,87 +222,13 @@ jobs:
 
   # ── Linux x86-64 (RPM) ──────────────────────────
   linux-rpm:
-    runs-on: ubuntu-24.04
+    runs-on: fedora-40
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential libfltk1.3-dev libmpv-dev python3-pip python3-pil rpm
-          pip3 install yt-dlp --break-system-packages
-
-      - name: Convert icon (placeholder for Linux)
-        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
-
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Package RPM
-        run: |
-          cd build && cpack -G RPM
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Nynetify-rpm
-          path: build/nynetify-*.rpm
-          compression-level: 0
-
-  # ── Linux i386 (DEB) ──────────────────────────
-  linux-deb-32:
-    runs-on: ubuntu-24.04
-    container:
-      image: i386/debian:bookworm
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates git \
-            cmake build-essential \
-            libfltk1.3-dev libmpv-dev \
-            python3 python3-pip python3-pil
-          pip3 install yt-dlp --break-system-packages
-
-      - name: Convert icon (placeholder for Linux)
-        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
-
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Package DEB
-        run: cd build && cpack -G DEB
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Nynetify-deb-32
-          path: build/nynetify-*.deb
-          compression-level: 0
-
-  # ── Linux i386 (RPM) ──────────────────────────
-  linux-rpm-32:
-    runs-on: ubuntu-24.04
-    container:
-      image: i386/debian:bookworm
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates git \
-            cmake build-essential \
-            libfltk1.3-dev libmpv-dev \
-            python3 python3-pip python3-pil rpm
+          sudo dnf install -y cmake gcc-c++ fltk-devel mpv-libs-devel python3-pip python3-pillow rpm-build
           pip3 install yt-dlp --break-system-packages
 
       - name: Convert icon (placeholder for Linux)
@@ -319,6 +245,55 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Nynetify-rpm-32
+          name: Nynetify-rpm
           path: build/nynetify-*.rpm
+          compression-level: 0
+
+  # ── Linux 32-bit cross-compiled (DEB i386 + RPM i686) ──
+  linux-32bit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install 32-bit toolchain and dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-multilib g++-multilib \
+            libfltk1.3-dev:i386 libmpv-dev:i386 \
+            cmake build-essential \
+            python3-pip python3-pil rpm
+          pip3 install yt-dlp --break-system-packages
+
+      - name: Convert icon (placeholder for Linux)
+        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Configure 32-bit
+        run: |
+          cmake -B build32 -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32 \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=i386 \
+            -DCPACK_RPM_PACKAGE_ARCHITECTURE=i686
+
+      - name: Build 32-bit
+        run: cmake --build build32
+
+      - name: Package DEB i386
+        run: cd build32 && cpack -G DEB
+
+      - name: Package RPM i686
+        run: cd build32 && cpack -G RPM
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-deb-i386
+          path: build32/nynetify-*.deb
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-rpm-i686
+          path: build32/nynetify-*.rpm
           compression-level: 0
