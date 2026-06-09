@@ -31,6 +31,8 @@ endif()
 
 target_link_libraries(Nynetify PRIVATE ${FLTK_LIBRARIES} mpv)
 
+install(TARGETS Nynetify DESTINATION bin)
+
 # ── CPack (Linux packages) ──────────────────────────
 if(UNIX)
     set(CPACK_GENERATOR "DEB;RPM")

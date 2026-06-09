@@ -270,12 +270,18 @@ jobs:
         run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 
       - name: Configure 32-bit
+        env:
+          PKG_CONFIG_PATH: /usr/lib/i386-linux-gnu/pkgconfig
         run: |
           cmake -B build32 -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32 \
+            -DCMAKE_EXE_LINKER_FLAGS=-m32 -DCMAKE_SHARED_LINKER_FLAGS=-m32 \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=i386 \
-            -DCPACK_RPM_PACKAGE_ARCHITECTURE=i686
+            -DCPACK_RPM_PACKAGE_ARCHITECTURE=i686 \
+            -DCMAKE_LIBRARY_ARCHITECTURE=i386-linux-gnu \
+            -DCMAKE_PREFIX_PATH=/usr/lib/i386-linux-gnu \
+            -DFLTK_DIR=/usr/lib/i386-linux-gnu/cmake/fltk
 
       - name: Build 32-bit
         run: cmake --build build32
