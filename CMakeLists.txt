@@ -31,6 +31,10 @@ endif()
 
 target_link_libraries(Nynetify PRIVATE ${FLTK_LIBRARIES} mpv)
 
+if(UNIX)
+    target_compile_definitions(Nynetify PRIVATE "fl_antialias(x)=(void)0")
+endif()
+
 install(TARGETS Nynetify DESTINATION bin)
 
 # ── CPack (Linux packages) ──────────────────────────

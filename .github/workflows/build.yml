@@ -261,10 +261,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             gcc-multilib g++-multilib \
-            libfltk1.3-dev:i386 libmpv-dev:i386 \
+            libfltk1.3-dev:i386 \
             cmake build-essential \
             python3-pip python3-pil rpm
           pip3 install yt-dlp --break-system-packages
+
+      - name: Download and extract 32-bit libmpv
+        run: |
+          mkdir -p mpv-i386
+          wget http://ftp.de.debian.org/debian/pool/main/m/mpv/libmpv2_0.35.1-4_i386.deb
+          dpkg-deb -x libmpv2_0.35.1-4_i386.deb mpv-i386
+          ln -s libmpv.so.2 mpv-i386/usr/lib/i386-linux-gnu/libmpv.so
 
       - name: Convert icon (placeholder for Linux)
         run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
@@ -280,7 +287,8 @@ jobs:
             -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=i386 \
             -DCPACK_RPM_PACKAGE_ARCHITECTURE=i686 \
             -DCMAKE_LIBRARY_ARCHITECTURE=i386-linux-gnu \
-            -DCMAKE_PREFIX_PATH=/usr/lib/i386-linux-gnu \
+            -DCMAKE_PREFIX_PATH="/usr/lib/i386-linux-gnu;${{ github.workspace }}/mpv-i386/usr" \
+            -DCMAKE_LIBRARY_PATH="${{ github.workspace }}/mpv-i386/usr/lib/i386-linux-gnu" \
             -DFLTK_DIR=/usr/lib/i386-linux-gnu/cmake/fltk
 
       - name: Build 32-bit
