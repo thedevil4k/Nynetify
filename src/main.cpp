@@ -455,6 +455,7 @@ int main(int argc, char **argv) {
     Fl::add_timeout(0.5, update_status_bar_cb);
 
     load_settings();
+    YoutubeService::setDebugMode(settings.debugMode);
     apply_language();
 
     window->end();

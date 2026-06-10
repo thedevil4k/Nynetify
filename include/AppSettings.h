@@ -23,6 +23,7 @@ struct AppSettings {
     int  initialFetchSize = 50;
     int  scrollBatchSize = 2;
     bool enableAntialiasing = true;
+    bool debugMode = false;
     std::string downloadPath;
 };
 

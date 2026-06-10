@@ -90,6 +90,7 @@ struct Lang {
     const char* fetch_size_label;
     const char* batch_label;
     const char* enable_antialiasing;
+    const char* enable_debug_mode;
 
     // EQ
     const char* enable_eq;
@@ -189,6 +190,7 @@ inline Lang LANG_EN = {
     "Fetch size: %d results",
     "Batch: +%d per scroll",
     " Enable Antialiasing",
+    " Enable Debug Mode",
     // EQ
     " ENABLE EQ",
     // Download
@@ -284,6 +286,7 @@ inline Lang LANG_ES = {
     "Tamano de busqueda: %d resultados",
     "Lote: +%d por scroll",
     " Activar Antialiasing",
+    " Modo Debug",
     // EQ
     " ACTIVAR EQ",
     // Download

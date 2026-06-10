@@ -9,6 +9,9 @@
 #include <memory>
 #include <stdexcept>
 #include <array>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 static const char* YT_DLP = "yt-dlp";
 static const char* YT_DLP_FAST = " --extractor-args \"youtube:skip=hls,dash;player_client=android\" --socket-timeout 5 --retries 1";
@@ -30,6 +33,10 @@ struct SearchResult {
 
 class YoutubeService {
 public:
+    static inline bool debugMode = false;
+
+    static void setDebugMode(bool enabled) { debugMode = enabled; }
+
     static std::vector<SearchResult> get_metadata(const std::vector<std::string>& ids) {
         std::vector<SearchResult> results;
         if (ids.empty()) return results;
@@ -41,7 +48,7 @@ public:
         command += NYN_NULL_REDIRECT;
 
         std::cout << "[DEBUG] Fetching metadata: " << command << std::endl;
-        std::string output = execute(command);
+        std::string output = execute(command, debugMode);
         
         std::istringstream ss(output);
         std::string line;
@@ -105,7 +112,7 @@ public:
         command += NYN_NULL_REDIRECT;
 
         std::cout << "[DEBUG] Executing search command: " << command << std::endl;
-        std::string output = execute(command);
+        std::string output = execute(command, debugMode);
         
         if (output.empty()) {
             std::cout << "[DEBUG] Command output was empty." << std::endl;
@@ -156,7 +163,7 @@ public:
             + " --flat-playlist --ignore-config --print title --print uploader --print channel_id --print id --no-warnings" + NYN_NULL_REDIRECT;
 
         std::cout << "[DEBUG] Fetching playlist videos: " << command << std::endl;
-        std::string output = execute(command);
+        std::string output = execute(command, debugMode);
 
         if (output.empty()) {
             std::cout << "[DEBUG] Playlist output was empty." << std::endl;
@@ -194,7 +201,7 @@ public:
             + " \"" + pl_url + "\""
             + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings" + NYN_NULL_REDIRECT;
         std::cout << "[DEBUG] Fetching channel playlists: " << cmd << std::endl;
-        std::string output = execute(cmd);
+        std::string output = execute(cmd, debugMode);
         if (!output.empty()) {
             std::istringstream ss(output);
             std::string line;
@@ -220,7 +227,7 @@ public:
             + " \"" + vid_url + "\""
             + " --flat-playlist --ignore-config --print title --print uploader --print id --no-warnings" + NYN_NULL_REDIRECT;
         std::cout << "[DEBUG] Fetching channel videos: " << cmd << std::endl;
-        output = execute(cmd);
+        output = execute(cmd, debugMode);
         if (!output.empty()) {
             std::istringstream ss(output);
             std::string line;
@@ -255,12 +262,12 @@ public:
         std::string cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " --ignore-config --print channel_id --no-playlist"
             + " \"https://www.youtube.com/watch?v=" + video_id + "\"" + NYN_NULL_REDIRECT;
-        return execute(cmd);
+        return execute(cmd, debugMode);
     }
 
     static std::string get_channel_avatar_url(const std::string& channel_id) {
         std::string cmd = std::string("curl -s \"https://www.youtube.com/channel/") + channel_id + "\"" + NYN_NULL_REDIRECT;
-        std::string html = execute(cmd);
+        std::string html = execute(cmd, debugMode);
         std::string marker = "property=\"og:image\" content=\"";
         size_t pos = html.find(marker);
         if (pos != std::string::npos) {
@@ -272,24 +279,72 @@ public:
         return "";
     }
 
-    static std::string execute(const std::string& cmd) {
+    static std::string execute(const std::string& cmd, bool debugMode = false) {
         std::array<char, 256> buffer;
         std::string result;
 #ifdef _WIN32
-        std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
-#else
-        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-#endif
-        if (!pipe) {
-            throw std::runtime_error("popen() failed!");
+        if (debugMode) {
+            std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
+            if (!pipe) throw std::runtime_error("popen() failed!");
+            std::array<char, 256> buffer;
+            std::string result;
+            while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
+                result += buffer.data();
+            }
+            while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
+                result.pop_back();
+            return result;
+        } else {
+            // Use CreateProcess with CREATE_NO_WINDOW to hide console
+            STARTUPINFOA si = { sizeof(si) };
+            si.dwFlags = STARTF_USESHOWWINDOW;
+            si.wShowWindow = SW_HIDE;
+            PROCESS_INFORMATION pi;
+            SECURITY_ATTRIBUTES sa = { sizeof(sa), NULL, TRUE };
+            HANDLE hRead, hWrite;
+            CreatePipe(&hRead, &hWrite, &sa, 0);
+            SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
+            si.hStdOutput = hWrite;
+            si.hStdError = hWrite;
+            si.dwFlags |= STARTF_USESTDHANDLES;
+            std::string cmdline = cmd;
+            if (CreateProcessA(NULL, &cmdline[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                CloseHandle(hWrite);
+                std::string result;
+                char buffer[256];
+                DWORD bytesRead;
+                while (ReadFile(hRead, buffer, sizeof(buffer) - 1, &bytesRead, NULL) && bytesRead > 0) {
+                    buffer[bytesRead] = '\0';
+                    result += buffer;
+                }
+                WaitForSingleObject(pi.hProcess, INFINITE);
+                CloseHandle(pi.hProcess);
+                CloseHandle(pi.hThread);
+                CloseHandle(hRead);
+                while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
+                    result.pop_back();
+                return result;
+            }
+            CloseHandle(hRead);
+            CloseHandle(hWrite);
+            return "";
         }
+#else
+        std::string fullCmd = cmd;
+        if (!debugMode) {
+            fullCmd += " 2>/dev/null";
+        }
+        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(fullCmd.c_str(), "r"), pclose);
+        if (!pipe) throw std::runtime_error("popen() failed!");
+        std::array<char, 256> buffer;
+        std::string result;
         while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
             result += buffer.data();
         }
-        // Remove trailing newline
         while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
             result.pop_back();
         return result;
+#endif
     }
 };
 

@@ -4,6 +4,9 @@
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include "AppCallbacks.h"
@@ -567,6 +570,15 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
         if (Fl::first_window()) Fl::first_window()->redraw();
     });
 
+    auto* debugToggle = new Fl_Check_Button(20, 140, 260, 30, lang->enable_debug_mode);
+    debugToggle->labelcolor(Theme::TEXT_PRIMARY);
+    debugToggle->value(settings.debugMode ? 1 : 0);
+    debugToggle->callback([](Fl_Widget* w, void*) {
+        auto* btn = (Fl_Check_Button*)w;
+        settings.debugMode = btn->value() != 0;
+        save_settings();
+    });
+
     auto* bufLabel = new Fl_Box(20, 150, 260, 20);
     bufLabel->labelcolor(Theme::TEXT_SECONDARY);
     bufLabel->labelsize(12);
@@ -684,7 +696,29 @@ void download_cb(Fl_Widget* w, void* data) {
     auto* titleCopy = new std::string(title);
     auto* filenameCopy = new std::string(filename);
     std::thread([cmd, titleCopy, filenameCopy]() {
-        std::system(cmd.c_str());
+#ifdef _WIN32
+        if (settings.debugMode) {
+            std::system(cmd.c_str());
+        } else {
+            // Use CreateProcess with CREATE_NO_WINDOW to hide console
+            STARTUPINFOA si = { sizeof(si) };
+            si.dwFlags = STARTF_USESHOWWINDOW;
+            si.wShowWindow = SW_HIDE;
+            PROCESS_INFORMATION pi;
+            std::string cmdline = cmd;
+            if (CreateProcessA(NULL, &cmdline[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                WaitForSingleObject(pi.hProcess, INFINITE);
+                CloseHandle(pi.hProcess);
+                CloseHandle(pi.hThread);
+            }
+        }
+#else
+        std::string fullCmd = cmd;
+        if (!settings.debugMode) {
+            fullCmd += " 2>/dev/null";
+        }
+        std::system(fullCmd.c_str());
+#endif
         
         // Clean up the original webm file after conversion
         std::string webm_file = filenameCopy->substr(0, filenameCopy->length() - 4) + ".webm";
