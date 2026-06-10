@@ -9,8 +9,73 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── Windows x86-64 ──────────────────────────────
+  # ═══════════════════════════════════════════════
+  # Stage 1: Linux 64-bit (runs first, in parallel)
+  # ═══════════════════════════════════════════════
+
+  linux-deb:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential pkg-config libfltk1.3-dev libmpv-dev python3-pip python3-pil
+          pip3 install yt-dlp --break-system-packages
+
+      - name: Convert icon
+        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package DEB
+        run: cd build && cpack -G DEB
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-deb
+          path: build/nynetify-*.deb
+          compression-level: 0
+
+  linux-rpm:
+    runs-on: fedora-40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-devel python3-pip python3-pillow rpm-build
+          pip3 install yt-dlp --break-system-packages
+
+      - name: Convert icon
+        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Package RPM
+        run: cd build && cpack -G RPM
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-rpm
+          path: build/nynetify-*.rpm
+          compression-level: 0
+
+  # ═══════════════════════════════════════════════
+  # Stage 2: Windows (after Linux 64-bit succeeds)
+  # ═══════════════════════════════════════════════
+
   windows-x64:
+    needs: [linux-deb, linux-rpm]
     runs-on: windows-latest
     defaults:
       run:
@@ -43,25 +108,21 @@ jobs:
       - name: Build
         run: cmake --build build
 
-      - name: Bundle yt-dlp
-        run: |
-          mkdir -p package
-          YT_DLP_SRC=$(python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))")
-          if [ -f "$YT_DLP_SRC" ]; then
-            cp "$YT_DLP_SRC" package/yt-dlp.exe
-            echo "yt-dlp.exe bundled from $YT_DLP_SRC"
-          else
-            echo "WARNING: yt-dlp.exe not found at $YT_DLP_SRC"
-          fi
-
-      - name: Copy DLL dependencies
+      - name: Bundle portable
         run: |
           mkdir -p package
           cp build/Nynetify.exe package/
+          # Bundle yt-dlp.exe
+          YT_DLP_SRC=$(python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))")
+          if [ -f "$YT_DLP_SRC" ]; then
+            cp "$YT_DLP_SRC" package/yt-dlp.exe
+          else
+            echo "WARNING: yt-dlp.exe not found, skipping"
+          fi
+          # Bundle DLLs
           ldd build/Nynetify.exe | while read -r name arrow path addr; do
             if [[ "$path" == /mingw64/bin/* && -f "$path" ]]; then
               cp "$path" package/
-              echo "Copied $path to package/"
             fi
           done
 
@@ -99,8 +160,8 @@ jobs:
           path: Nynetify-x64-portable.zip
           compression-level: 0
 
-  # ── Windows ARM64 ───────────────────────────────
   windows-arm64:
+    needs: [linux-deb, linux-rpm]
     runs-on: windows-11-arm
     defaults:
       run:
@@ -133,25 +194,21 @@ jobs:
       - name: Build
         run: cmake --build build
 
-      - name: Bundle yt-dlp
-        run: |
-          mkdir -p package
-          YT_DLP_SRC=$(python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))")
-          if [ -f "$YT_DLP_SRC" ]; then
-            cp "$YT_DLP_SRC" package/yt-dlp.exe
-            echo "yt-dlp.exe bundled from $YT_DLP_SRC"
-          else
-            echo "WARNING: yt-dlp.exe not found at $YT_DLP_SRC"
-          fi
-
-      - name: Copy DLL dependencies
+      - name: Bundle portable
         run: |
           mkdir -p package
           cp build/Nynetify.exe package/
+          # Bundle yt-dlp.exe
+          YT_DLP_SRC=$(python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))")
+          if [ -f "$YT_DLP_SRC" ]; then
+            cp "$YT_DLP_SRC" package/yt-dlp.exe
+          else
+            echo "WARNING: yt-dlp.exe not found, skipping"
+          fi
+          # Bundle DLLs
           ldd build/Nynetify.exe | while read -r name arrow path addr; do
             if [[ "$path" == /clangarm64/bin/* && -f "$path" ]]; then
               cp "$path" package/
-              echo "Copied $path to package/"
             fi
           done
 
@@ -189,92 +246,72 @@ jobs:
           path: Nynetify-arm64-portable.zip
           compression-level: 0
 
-  # ── Linux x86-64 (DEB) ──────────────────────────
-  linux-deb:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
+  # ═══════════════════════════════════════════════
+  # Stage 3: Linux 32-bit (after Windows succeeds)
+  # ═══════════════════════════════════════════════
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential pkg-config libfltk1.3-dev libmpv-dev python3-pip python3-pil
-          pip3 install yt-dlp --break-system-packages
-
-      - name: Convert icon (placeholder for Linux)
-        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
-
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Package DEB
-        run: |
-          cd build && cpack -G DEB
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Nynetify-deb
-          path: build/nynetify-*.deb
-          compression-level: 0
-
-  # ── Linux x86-64 (RPM) ──────────────────────────
-  linux-rpm:
-    runs-on: fedora-40
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-devel python3-pip python3-pillow rpm-build
-          pip3 install yt-dlp --break-system-packages
-
-      - name: Convert icon (placeholder for Linux)
-        run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
-
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Package RPM
-        run: cd build && cpack -G RPM
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Nynetify-rpm
-          path: build/nynetify-*.rpm
-          compression-level: 0
-
-  # ── Linux 32-bit cross-compiled (DEB i386 + RPM i686) ──
   linux-32bit:
+    needs: [windows-x64, windows-arm64]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install 32-bit toolchain and dependencies
+      - name: Install 32-bit toolchain and common deps
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y \
             gcc-multilib g++-multilib \
-            libfltk1.3-dev:i386 libmpv-dev:i386 \
+            libfltk1.3-dev:i386 \
             cmake build-essential pkg-config \
             python3-pip python3-pil rpm
           pip3 install yt-dlp --break-system-packages
 
+      - name: Install 32-bit libmpv
+        run: |
+          # Try apt first (may not be available for i386)
+          sudo apt-get install -y libmpv-dev:i386 2>/dev/null && exit 0
 
+          # Fallback: extract from Debian Bookworm i386 .deb packages
+          mkdir -p /tmp/mpv-install /usr/lib/i386-linux-gnu/pkgconfig
 
-      - name: Convert icon (placeholder for Linux)
+          # Query Debian repo for the latest libmpv2 i386
+          wget -qO- "https://deb.debian.org/debian/pool/main/m/mpv/" \
+            | grep -oP 'libmpv2_[^"]*_i386\.deb' \
+            | sort -V \
+            | tail -1 \
+            > /tmp/MPV_RUNTIME_DEB 2>/dev/null || echo "libmpv2_0.35.1-4_i386.deb" > /tmp/MPV_RUNTIME_DEB
+
+          wget -qO- "https://deb.debian.org/debian/pool/main/m/mpv/" \
+            | grep -oP 'libmpv-dev_[^"]*_i386\.deb' \
+            | sort -V \
+            | tail -1 \
+            > /tmp/MPV_DEV_DEB 2>/dev/null || echo "libmpv-dev_0.35.1-4_i386.deb" > /tmp/MPV_DEV_DEB
+
+          RUNTIME_DEB=$(cat /tmp/MPV_RUNTIME_DEB)
+          DEV_DEB=$(cat /tmp/MPV_DEV_DEB)
+
+          echo "Downloading $RUNTIME_DEB and $DEV_DEB"
+
+          wget -q "https://deb.debian.org/debian/pool/main/m/mpv/$RUNTIME_DEB" -O /tmp/mpv-install/runtime.deb
+          wget -q "https://deb.debian.org/debian/pool/main/m/mpv/$DEV_DEB" -O /tmp/mpv-install/dev.deb
+
+          # Extract and install
+          for deb in /tmp/mpv-install/*.deb; do
+            dpkg-deb -x "$deb" /tmp/mpv-install/extracted
+          done
+          sudo cp -r /tmp/mpv-install/extracted/usr/lib/i386-linux-gnu/* /usr/lib/i386-linux-gnu/
+          sudo cp -r /tmp/mpv-install/extracted/usr/lib/pkgconfig/* /usr/lib/i386-linux-gnu/pkgconfig/ 2>/dev/null || true
+          sudo ln -sf /usr/lib/i386-linux-gnu/libmpv.so.2 /usr/lib/i386-linux-gnu/libmpv.so
+          sudo ldconfig
+
+          echo "32-bit libmpv installed from Debian Bookworm"
+
+      - name: Convert icon
         run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 
       - name: Configure 32-bit
         env:
-          # PKG_CONFIG_LIBDIR completely replaces default search path so
-          # pkg_check_modules(FLTK) resolves exclusively 32-bit libraries.
           PKG_CONFIG_LIBDIR: /usr/lib/i386-linux-gnu/pkgconfig
         run: |
           cmake -B build32 -DCMAKE_BUILD_TYPE=Release \
