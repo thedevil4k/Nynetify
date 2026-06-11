@@ -10,9 +10,8 @@ on:
 
 jobs:
   # ═══════════════════════════════════════════════
-  # Stage 1: Linux 64-bit (runs first, in parallel)
+  # Linux 64-bit DEB
   # ═══════════════════════════════════════════════
-
   linux-deb:
     runs-on: ubuntu-24.04
     steps:
@@ -21,20 +20,106 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential pkg-config libfltk1.3-dev libmpv-dev python3-pip python3-pil
+          sudo apt-get install -y cmake build-essential pkg-config \
+            libfltk1.3-dev libmpv-dev python3-pip python3-pil dpkg-dev wget
           pip3 install yt-dlp --break-system-packages
 
       - name: Convert icon
         run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build
 
-      - name: Package DEB
-        run: cd build && cpack -G DEB
+      - name: Bundle dependencies and create DEB package
+        run: |
+          set -e
+          PKG="package"
+          VERSION="1.0.0"
+          ARCH="amd64"
+
+          mkdir -p "$PKG/DEBIAN"
+          mkdir -p "$PKG/opt/nynetify/bin"
+          mkdir -p "$PKG/opt/nynetify/lib"
+          mkdir -p "$PKG/usr/bin"
+
+          # 1. Nynetify binary
+          cp build/Nynetify "$PKG/opt/nynetify/bin/"
+
+          # 2. Bundle mpv + its non-system library dependencies
+          MPV_BIN="/usr/bin/mpv"
+          if [ -f "$MPV_BIN" ]; then
+            cp "$MPV_BIN" "$PKG/opt/nynetify/bin/"
+            # Filter out core system libs, copy the rest
+            ldd "$MPV_BIN" | grep '=> /' | awk '{print $3}' | while read -r lib; do
+              base="$(basename "$lib")"
+              case "$base" in
+                linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*|libz.so*|libzstd*)
+                  ;;
+                *)
+                  if [ -f "$lib" ]; then
+                    cp -L "$lib" "$PKG/opt/nynetify/lib/"
+                  fi
+                  ;;
+              esac
+            done
+          fi
+
+          # Also copy Nynetify's non-system lib deps
+          ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do
+            base="$(basename "$lib")"
+            case "$base" in
+              linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*)
+                ;;
+              *)
+                if [ -f "$lib" ] && [ ! -f "$PKG/opt/nynetify/lib/$base" ]; then
+                  cp -L "$lib" "$PKG/opt/nynetify/lib/"
+                fi
+                ;;
+            esac
+          done
+
+          # 3. Bundle yt-dlp (standalone zipapp from GitHub)
+          wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
+            -O "$PKG/opt/nynetify/bin/yt-dlp"
+          chmod +x "$PKG/opt/nynetify/bin/yt-dlp"
+
+          # 4. Launcher wrapper
+          cat > "$PKG/opt/nynetify/nynetify" << 'WRAPPER'
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "$0")")"
+export LD_LIBRARY_PATH="$HERE/lib:$LD_LIBRARY_PATH"
+export PATH="$HERE/bin:$PATH"
+exec "$HERE/bin/Nynetify" "$@"
+WRAPPER
+          chmod +x "$PKG/opt/nynetify/nynetify"
+
+          # 5. Symlink in /usr/bin
+          ln -s /opt/nynetify/nynetify "$PKG/usr/bin/nynetify"
+
+          # 6. DEBIAN/control
+          cat > "$PKG/DEBIAN/control" << CONTROL
+Package: nynetify
+Version: $VERSION
+Section: sound
+Priority: optional
+Architecture: $ARCH
+Depends: python3, libc6
+Maintainer: Nynetify <https://github.com/anomalyco/Nynetify>
+Description: YouTube Audio Player
+ A self-contained YouTube audio streaming application.
+ Bundles mpv and yt-dlp; no external runtime dependencies needed.
+CONTROL
+
+          # 7. Build .deb
+          dpkg-deb -b "$PKG" "build/nynetify-${VERSION}-${ARCH}.deb"
+          echo "=== DEB package created ==="
+          ls -lh "build/nynetify-${VERSION}-${ARCH}.deb"
+
+      - name: Verify DEB
+        run: test -f build/nynetify-*.deb && echo "DEB OK" || { echo "DEB NOT FOUND"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -42,6 +127,9 @@ jobs:
           path: build/nynetify-*.deb
           compression-level: 0
 
+  # ═══════════════════════════════════════════════
+  # Linux 64-bit RPM
+  # ═══════════════════════════════════════════════
   linux-rpm:
     runs-on: fedora-40
     steps:
@@ -49,20 +137,139 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-devel python3-pip python3-pillow rpm-build
+          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-devel \
+            python3-pip python3-pillow rpm-build wget
           pip3 install yt-dlp --break-system-packages
 
       - name: Convert icon
         run: python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build
 
-      - name: Package RPM
-        run: cd build && cpack -G RPM
+      - name: Bundle dependencies and create RPM package
+        run: |
+          set -e
+          VERSION="1.0.0"
+          ARCH="x86_64"
+          RPM_BUILD_DIR="$HOME/rpmbuild"
+          mkdir -p "$RPM_BUILD_DIR/BUILD"
+          mkdir -p "$RPM_BUILD_DIR/RPMS/$ARCH"
+          mkdir -p "$RPM_BUILD_DIR/BUILDROOT"
+          mkdir -p "$RPM_BUILD_DIR/SPECS"
+          mkdir -p "$RPM_BUILD_DIR/SOURCES"
+
+          # Build root
+          BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"
+          mkdir -p "$BR"
+
+          # 1. Nynetify binary
+          mkdir -p "$BR/opt/nynetify/bin"
+          cp build/Nynetify "$BR/opt/nynetify/bin/"
+
+          # 2. Bundle mpv + libs
+          MPV_BIN="/usr/bin/mpv"
+          if [ -f "$MPV_BIN" ]; then
+            mkdir -p "$BR/opt/nynetify/lib"
+            cp "$MPV_BIN" "$BR/opt/nynetify/bin/"
+            ldd "$MPV_BIN" | grep '=> /' | awk '{print $3}' | while read -r lib; do
+              base="$(basename "$lib")"
+              case "$base" in
+                linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*|libz.so*|libzstd*)
+                  ;;
+                *)
+                  if [ -f "$lib" ]; then
+                    cp -L "$lib" "$BR/opt/nynetify/lib/"
+                  fi
+                  ;;
+              esac
+            done
+          fi
+
+          # Nynetify lib deps
+          ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do
+            base="$(basename "$lib")"
+            case "$base" in
+              linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*)
+                ;;
+              *)
+                if [ -f "$lib" ] && [ ! -f "$BR/opt/nynetify/lib/$base" ]; then
+                  cp -L "$lib" "$BR/opt/nynetify/lib/"
+                fi
+                ;;
+            esac
+          done
+
+          # 3. Bundle yt-dlp
+          wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
+            -O "$BR/opt/nynetify/bin/yt-dlp"
+          chmod +x "$BR/opt/nynetify/bin/yt-dlp"
+
+          # 4. Launcher wrapper
+          mkdir -p "$BR/opt/nynetify"
+          cat > "$BR/opt/nynetify/nynetify" << 'WRAPPER'
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "$0")")"
+export LD_LIBRARY_PATH="$HERE/lib:$LD_LIBRARY_PATH"
+export PATH="$HERE/bin:$PATH"
+exec "$HERE/bin/Nynetify" "$@"
+WRAPPER
+          chmod +x "$BR/opt/nynetify/nynetify"
+
+          # 5. Symlink
+          mkdir -p "$BR/usr/bin"
+          ln -s /opt/nynetify/nynetify "$BR/usr/bin/nynetify"
+
+          # 6. SPEC file
+          cat > "$RPM_BUILD_DIR/SPECS/nynetify.spec" << SPEC
+Name: nynetify
+Version: $VERSION
+Release: 1
+Summary: YouTube Audio Player
+License: GPL-3.0
+Group: Applications/Multimedia
+URL: https://github.com/anomalyco/Nynetify
+BuildArch: $ARCH
+AutoReqProv: no
+Requires: python3
+
+%description
+Self-contained YouTube audio streaming application. Bundles mpv and yt-dlp.
+
+%files
+/opt/nynetify/bin/Nynetify
+/opt/nynetify/bin/mpv
+/opt/nynetify/bin/yt-dlp
+/opt/nynetify/nynetify
+/usr/bin/nynetify
+%dir /opt/nynetify/lib/
+/opt/nynetify/lib/*.so*
+%doc
+
+%post
+chmod +x /opt/nynetify/bin/* /opt/nynetify/nynetify
+
+%clean
+rm -rf \$RPM_BUILD_ROOT
+
+SPEC
+
+          # 7. Copy BUILDROOT
+          cp -r "$BR" "$RPM_BUILD_DIR/BUILDROOT/nynetify-1.0.0-1.x86_64"
+
+          # 8. Build RPM
+          rpmbuild -bb "$RPM_BUILD_DIR/SPECS/nynetify.spec" --buildroot "$BR" --target "$ARCH"
+          
+          mkdir -p build
+          cp "$RPM_BUILD_DIR/RPMS/$ARCH/nynetify-${VERSION}-1.${ARCH}.rpm" "build/"
+          echo "=== RPM package created ==="
+          ls -lh "build/nynetify-${VERSION}-1.${ARCH}.rpm"
+
+      - name: Verify RPM
+        run: test -f build/nynetify-*.rpm && echo "RPM OK" || { echo "RPM NOT FOUND"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -71,11 +278,9 @@ jobs:
           compression-level: 0
 
   # ═══════════════════════════════════════════════
-  # Stage 2: Windows (after Linux 64-bit succeeds)
+  # Windows x64 (portable ZIP + NSIS installer)
   # ═══════════════════════════════════════════════
-
   windows-x64:
-    needs: [linux-deb, linux-rpm]
     runs-on: windows-latest
     defaults:
       run:
@@ -125,10 +330,21 @@ jobs:
               cp "$path" package/
             fi
           done
+          echo "=== Portable package contents ==="
+          ls -la package/
 
       - name: Package portable ZIP
         run: Compress-Archive -Path package\* -DestinationPath Nynetify-x64-portable.zip -Force
         shell: powershell
+
+      - name: Verify portable ZIP
+        run: |
+          if [ -f Nynetify-x64-portable.zip ]; then
+            echo "Portable ZIP OK ($(ls -lh Nynetify-x64-portable.zip | awk '{print $5}'))"
+          else
+            echo "Portable ZIP NOT FOUND"
+            exit 1
+          fi
 
       - name: Install NSIS
         run: choco install nsis -y
@@ -146,7 +362,18 @@ jobs:
               $makensis = "makensis"
           }
           & $makensis /DARCH=x64 installer.nsi
+          Write-Host "=== NSIS installer built ==="
+          Get-ChildItem -Filter "Nynetify-*.exe" | Format-Table Name, Length
         shell: powershell
+
+      - name: Verify installer
+        run: |
+          if ls package/Nynetify-*.exe 2>/dev/null; then
+            echo "Installer OK"
+          else
+            echo "Installer NOT FOUND"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -160,8 +387,10 @@ jobs:
           path: Nynetify-x64-portable.zip
           compression-level: 0
 
+  # ═══════════════════════════════════════════════
+  # Windows ARM64 (portable ZIP + NSIS installer)
+  # ═══════════════════════════════════════════════
   windows-arm64:
-    needs: [linux-deb, linux-rpm]
     runs-on: windows-11-arm
     defaults:
       run:
@@ -211,10 +440,21 @@ jobs:
               cp "$path" package/
             fi
           done
+          echo "=== Portable package contents ==="
+          ls -la package/
 
       - name: Package portable ZIP
         run: Compress-Archive -Path package\* -DestinationPath Nynetify-arm64-portable.zip -Force
         shell: powershell
+
+      - name: Verify portable ZIP
+        run: |
+          if [ -f Nynetify-arm64-portable.zip ]; then
+            echo "Portable ZIP OK ($(ls -lh Nynetify-arm64-portable.zip | awk '{print $5}'))"
+          else
+            echo "Portable ZIP NOT FOUND"
+            exit 1
+          fi
 
       - name: Install NSIS
         run: choco install nsis -y
@@ -232,7 +472,18 @@ jobs:
               $makensis = "makensis"
           }
           & $makensis /DARCH=arm64 installer.nsi
+          Write-Host "=== NSIS installer built ==="
+          Get-ChildItem -Filter "Nynetify-*.exe" | Format-Table Name, Length
         shell: powershell
+
+      - name: Verify installer
+        run: |
+          if ls package/Nynetify-*.exe 2>/dev/null; then
+            echo "Installer OK"
+          else
+            echo "Installer NOT FOUND"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -245,5 +496,3 @@ jobs:
           name: Nynetify-arm64-portable
           path: Nynetify-arm64-portable.zip
           compression-level: 0
-
-
