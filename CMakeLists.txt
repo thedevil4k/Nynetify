@@ -5,10 +5,16 @@ set(CMAKE_CXX_STANDARD 20)
 
 # Dependencies
 if(UNIX)
-    # Use pkg-config on Linux/Unix: avoids cmake-config conflicts that
-    # produce FLTK_PATH_LIBRARY-NOTFOUND errors in i386 cross-builds.
+    # Use pkg-config on Linux/Unix. Distros package FLTK under different
+    # pkg-config module names (Ubuntu: fltk, Fedora: fltk). Try common ones.
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(FLTK REQUIRED fltk)
+    pkg_check_modules(FLTK fltk)
+    if(NOT FLTK_FOUND)
+        pkg_check_modules(FLTK fltk1.3)
+    endif()
+    if(NOT FLTK_FOUND)
+        message(FATAL_ERROR "FLTK not found via pkg-config. Install libfltk1.3-dev (Debian/Ubuntu) or fltk-devel (Fedora).")
+    endif()
     include_directories(${FLTK_INCLUDE_DIRS})
 else()
     find_package(FLTK REQUIRED)
