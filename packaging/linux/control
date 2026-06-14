@@ -1,0 +1,10 @@
+Package: nynetify
+Version: 1.0.0
+Section: sound
+Priority: optional
+Architecture: amd64
+Depends: python3, libc6
+Maintainer: Nynetify <https://github.com/anomalyco/Nynetify>
+Description: YouTube Audio Player
+ A self-contained YouTube audio streaming application.
+ Bundles mpv and yt-dlp; no external runtime dependencies needed.

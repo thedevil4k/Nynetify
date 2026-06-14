@@ -56,7 +56,7 @@ RUN cp /usr/bin/mpv /app/package/opt/nynetify/bin/ \
 RUN ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do \
       base="$(basename "$lib")"; \
       case "$base" in \
-        linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*) \
+        linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*) \
           ;; \
         *) \
           if [ -f "$lib" ] && [ ! -f "/app/package/opt/nynetify/lib/$base" ]; then \
@@ -72,31 +72,14 @@ RUN wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
     && chmod +x /app/package/opt/nynetify/bin/yt-dlp
 
 # 4. Launcher wrapper
-RUN cat <<'EOF' > /app/package/opt/nynetify/nynetify
-#!/bin/bash
-HERE="$(dirname "$(readlink -f "$0")")"
-export LD_LIBRARY_PATH="$HERE/lib:$LD_LIBRARY_PATH"
-export PATH="$HERE/bin:$PATH"
-exec "$HERE/bin/Nynetify" "$@"
-EOF
-RUN chmod +x /app/package/opt/nynetify/nynetify
+RUN cp packaging/linux/nynetify.wrapper /app/package/opt/nynetify/nynetify \
+    && chmod +x /app/package/opt/nynetify/nynetify
 
 # 5. Symlink in /usr/bin
 RUN ln -s /opt/nynetify/nynetify /app/package/usr/bin/nynetify
 
 # 6. DEBIAN/control
-RUN cat <<'EOF' > /app/package/DEBIAN/control
-Package: nynetify
-Version: 1.0.0
-Section: sound
-Priority: optional
-Architecture: amd64
-Depends: python3, libc6
-Maintainer: Nynetify <https://github.com/anomalyco/Nynetify>
-Description: YouTube Audio Player
- A self-contained YouTube audio streaming application.
- Bundles mpv and yt-dlp; no external runtime dependencies needed.
-EOF
+RUN cp packaging/linux/control /app/package/DEBIAN/control
 
 # 7. Build .deb
 RUN dpkg-deb -b /app/package /app/nynetify-1.0.0-amd64.deb
