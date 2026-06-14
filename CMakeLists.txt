@@ -56,11 +56,9 @@ else()
 endif()
 
 # ── Install ──────────────────────────────────
-if(WIN32)
-    install(TARGETS Nynetify DESTINATION bin)
-else()
-    install(TARGETS Nynetify DESTINATION "/opt/nynetify/bin")
-endif()
+# Install to 'bin', CPack/workflow will relocate
+install(TARGETS Nynetify DESTINATION bin)
+
 
 # ── CPack (Linux packages) ────────────────────
 if(UNIX)

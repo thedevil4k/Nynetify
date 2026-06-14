@@ -1,0 +1,102 @@
+FROM ubuntu:24.04
+
+# Avoid interactive prompts during apt install
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    cmake \
+    build-essential \
+    pkg-config \
+    libfltk1.3-dev \
+    libmpv-dev \
+    mpv \
+    wget \
+    python3-pip \
+    python3-pil \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy source code
+COPY . .
+
+# Convert icon
+RUN python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+# Configure and Build
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release
+RUN cmake --build build
+
+# Bundle dependencies and create DEB package structure
+RUN mkdir -p /app/package/DEBIAN \
+    && mkdir -p /app/package/opt/nynetify/bin \
+    && mkdir -p /app/package/opt/nynetify/lib \
+    && mkdir -p /app/package/usr/bin
+
+# 1. Nynetify binary
+RUN cp build/Nynetify /app/package/opt/nynetify/bin/
+
+# 2. Bundle mpv + its non-system library dependencies
+RUN cp /usr/bin/mpv /app/package/opt/nynetify/bin/ \
+    && ldd /usr/bin/mpv | grep '=> /' | awk '{print $3}' | while read -r lib; do \
+      base="$(basename "$lib")"; \
+      case "$base" in \
+        linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*|libz.so*|libzstd*) \
+          ;; \
+        *) \
+          if [ -f "$lib" ]; then \
+            cp -L "$lib" /app/package/opt/nynetify/lib/; \
+          fi \
+          ;; \
+      esac; \
+    done
+
+# Also copy Nynetify's non-system lib deps
+RUN ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do \
+      base="$(basename "$lib")"; \
+      case "$base" in \
+        linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*) \
+          ;; \
+        *) \
+          if [ -f "$lib" ] && [ ! -f "/app/package/opt/nynetify/lib/$base" ]; then \
+            cp -L "$lib" /app/package/opt/nynetify/lib/; \
+          fi \
+          ;; \
+      esac; \
+    done
+
+# 3. Bundle yt-dlp (standalone zipapp)
+RUN wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
+      -O /app/package/opt/nynetify/bin/yt-dlp \
+    && chmod +x /app/package/opt/nynetify/bin/yt-dlp
+
+# 4. Launcher wrapper
+RUN cat <<'EOF' > /app/package/opt/nynetify/nynetify
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "$0")")"
+export LD_LIBRARY_PATH="$HERE/lib:$LD_LIBRARY_PATH"
+export PATH="$HERE/bin:$PATH"
+exec "$HERE/bin/Nynetify" "$@"
+EOF
+RUN chmod +x /app/package/opt/nynetify/nynetify
+
+# 5. Symlink in /usr/bin
+RUN ln -s /opt/nynetify/nynetify /app/package/usr/bin/nynetify
+
+# 6. DEBIAN/control
+RUN cat <<'EOF' > /app/package/DEBIAN/control
+Package: nynetify
+Version: 1.0.0
+Section: sound
+Priority: optional
+Architecture: amd64
+Depends: python3, libc6
+Maintainer: Nynetify <https://github.com/anomalyco/Nynetify>
+Description: YouTube Audio Player
+ A self-contained YouTube audio streaming application.
+ Bundles mpv and yt-dlp; no external runtime dependencies needed.
+EOF
+
+# 7. Build .deb
+RUN dpkg-deb -b /app/package /app/nynetify-1.0.0-amd64.deb
