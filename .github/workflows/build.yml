@@ -93,83 +93,20 @@ jobs:
           compression-level: 0
 
   # ═══════════════════════════════════════════════
-  # Linux RPM (native build on Fedora)
+  # Linux RPM (via Docker on Ubuntu)
   # ═══════════════════════════════════════════════
   linux-rpm:
-    runs-on: fedora-40
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-devel mpv \
-            python3-pip python3-pillow rpm-build wget
+      - name: Build RPM in Fedora Docker
+        run: docker build -t nynetify-rpm -f packaging/linux/Dockerfile.fedora .
 
-      - name: Build
+      - name: Extract RPM
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build
-
-      - name: Package RPM
-        run: |
-          set -e
-          mkdir -p rpmbuild/BUILD rpmbuild/RPMS/x86_64 rpmbuild/BUILDROOT rpmbuild/SPECS
-          
-          BR="rpmbuild/BUILDROOT/nynetify-1.0.0-1.x86_64"
-          mkdir -p "$BR/opt/nynetify/bin" "$BR/opt/nynetify/lib" "$BR/usr/bin"
-          
-          # Main binary
-          cp build/Nynetify "$BR/opt/nynetify/bin/"
-          
-          # mpv binary
-          cp /usr/bin/mpv "$BR/opt/nynetify/bin/"
-          
-          # mpv libs (non-system only)
-          ldd /usr/bin/mpv | grep '=> /' | awk '{print $3}' | while read -r lib; do
-            base=$(basename "$lib")
-            case "$base" in
-              linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*|libz.so*|libzstd*)
-                ;;
-              *)
-                [ -f "$lib" ] && cp -L "$lib" "$BR/opt/nynetify/lib/" || true
-                ;;
-            esac
-          done
-          
-          # Nynetify libs (non-system only)
-          ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do
-            base=$(basename "$lib")
-            case "$base" in
-              linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*)
-                ;;
-              *)
-                if [ -f "$lib" ] && [ ! -f "$BR/opt/nynetify/lib/$base" ]; then
-                  cp -L "$lib" "$BR/opt/nynetify/lib/" || true
-                fi
-                ;;
-            esac
-          done
-          
-          # yt-dlp
-          wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
-            -O "$BR/opt/nynetify/bin/yt-dlp" || true
-          chmod +x "$BR/opt/nynetify/bin/yt-dlp"
-          
-          # wrapper
-          cp packaging/linux/nynetify.wrapper "$BR/opt/nynetify/nynetify"
-          chmod +x "$BR/opt/nynetify/nynetify"
-          
-          # symlink
-          ln -s /opt/nynetify/nynetify "$BR/usr/bin/nynetify"
-          
-          # spec
-          cp packaging/linux/nynetify.spec rpmbuild/SPECS/
-          
-          # build
-          rpmbuild -bb rpmbuild/SPECS/nynetify.spec --buildroot "$BR" --target x86_64
-          
-          # copy result
-          cp rpmbuild/RPMS/x86_64/*.rpm build/
+          mkdir -p build
+          docker run --rm -v $(pwd)/build:/out nynetify-rpm sh -c "cp /app/*.rpm /out/"
 
       - name: Verify RPM
         run: ls -lh build/*.rpm

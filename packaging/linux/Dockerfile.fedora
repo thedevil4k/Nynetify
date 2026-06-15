@@ -1,0 +1,49 @@
+FROM fedora:40
+
+RUN dnf install -y \
+    cmake \
+    gcc-c++ \
+    pkgconfig \
+    fltk-devel \
+    mpv-devel \
+    mpv \
+    python3-pip \
+    python3-pillow \
+    rpm-build \
+    wget \
+    && dnf clean all
+
+WORKDIR /app
+
+COPY . .
+
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
+
+RUN set -e && \
+    version="1.0.0" && \
+    arch="x86_64" && \
+    mkdir -p /root/rpmbuild/{BUILD,RPMS,SPECS,BUILDROOT} && \
+    br="/root/rpmbuild/BUILDROOT/nynetify-${version}-1.${arch}" && \
+    mkdir -p "$br/opt/nynetify/bin" "$br/opt/nynetify/lib" "$br/usr/bin" && \
+    cp build/Nynetify "$br/opt/nynetify/bin/" && \
+    cp /usr/bin/mpv "$br/opt/nynetify/bin/" && \
+    ldd /usr/bin/mpv | grep '=> /' | awk '{print $3}' | while read -r lib; do \
+      base=$(basename "$lib"); \
+      case "$base" in linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*|libz.so*|libzstd*) ;; \
+        *) [ -f "$lib" ] && cp -L "$lib" "$br/opt/nynetify/lib/" || true ;; \
+      esac; \
+    done && \
+    ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do \
+      base=$(basename "$lib"); \
+      case "$base" in linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*) ;; \
+        *) if [ -f "$lib" ] && [ ! -f "$br/opt/nynetify/lib/$base" ]; then cp -L "$lib" "$br/opt/nynetify/lib/" || true; fi ;; \
+      esac; \
+    done && \
+    wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" -O "$br/opt/nynetify/bin/yt-dlp" && \
+    chmod +x "$br/opt/nynetify/bin/yt-dlp" && \
+    cp packaging/linux/nynetify.wrapper "$br/opt/nynetify/nynetify" && \
+    chmod +x "$br/opt/nynetify/nynetify" && \
+    ln -s /opt/nynetify/nynetify "$br/usr/bin/nynetify" && \
+    cp packaging/linux/nynetify.spec /root/rpmbuild/SPECS/ && \
+    rpmbuild -bb /root/rpmbuild/SPECS/nynetify.spec --buildroot "$br" --target "x86_64" && \
+    cp "/root/rpmbuild/RPMS/x86_64/nynetify-${version}-1.${arch}.rpm" /app/
