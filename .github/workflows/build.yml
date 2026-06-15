@@ -10,53 +10,174 @@ on:
 
 jobs:
   # ═══════════════════════════════════════════════
-  # Linux 64-bit DEB (via Docker)
+  # Linux DEB (native build on Ubuntu)
   # ═══════════════════════════════════════════════
   linux-deb:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker Image
-        run: docker build -t nynetify-deb -f Dockerfile.debian .
-
-      - name: Extract DEB Package
+      - name: Install dependencies
         run: |
-          mkdir -p build
-          docker run --rm -v $(pwd)/build:/out nynetify-deb cp /app/nynetify-1.0.0-amd64.deb /out/
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential pkg-config \
+            libfltk1.3-dev libmpv-dev python3-pip python3-pil wget
+
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Package DEB
+        run: |
+          set -e
+          mkdir -p pkg/DEBIAN pkg/opt/nynetify/bin pkg/opt/nynetify/lib pkg/usr/bin
+          
+          # Main binary
+          cp build/Nynetify pkg/opt/nynetify/bin/
+          
+          # mpv binary
+          cp /usr/bin/mpv pkg/opt/nynetify/bin/
+          
+          # mpv libs (non-system only)
+          ldd /usr/bin/mpv | grep '=> /' | awk '{print $3}' | while read -r lib; do
+            base=$(basename "$lib")
+            case "$base" in
+              linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*|libz.so*|libzstd*)
+                ;;
+              *)
+                [ -f "$lib" ] && cp -L "$lib" pkg/opt/nynetify/lib/ || true
+                ;;
+            esac
+          done
+          
+          # Nynetify libs (non-system only)
+          ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do
+            base=$(basename "$lib")
+            case "$base" in
+              linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*)
+                ;;
+              *)
+                if [ -f "$lib" ] && [ ! -f "pkg/opt/nynetify/lib/$base" ]; then
+                  cp -L "$lib" pkg/opt/nynetify/lib/ || true
+                fi
+                ;;
+            esac
+          done
+          
+          # yt-dlp
+          wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
+            -O pkg/opt/nynetify/bin/yt-dlp || true
+          chmod +x pkg/opt/nynetify/bin/yt-dlp
+          
+          # wrapper
+          cp packaging/linux/nynetify.wrapper pkg/opt/nynetify/nynetify
+          chmod +x pkg/opt/netify/nynetify
+          
+          # symlink
+          ln -s /opt/nynetify/nynetify pkg/usr/bin/nynetify
+          
+          # control file
+          cp packaging/linux/control pkg/DEBIAN/control
+          
+          # build
+          dpkg-deb -b pkg build/nynetify-1.0.0-amd64.deb
 
       - name: Verify DEB
-        run: test -f build/nynetify-*.deb && echo "DEB OK" || { echo "DEB NOT FOUND"; exit 1; }
+        run: ls -lh build/*.deb
 
       - uses: actions/upload-artifact@v4
         with:
           name: Nynetify-deb
-          path: build/nynetify-*.deb
+          path: build/*.deb
           compression-level: 0
 
   # ═══════════════════════════════════════════════
-  # Linux 64-bit RPM (via Docker)
+  # Linux RPM (native build on Fedora)
   # ═══════════════════════════════════════════════
   linux-rpm:
-    runs-on: ubuntu-latest
+    runs-on: fedora-40
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker Image
-        run: docker build -t nynetify-rpm -f Dockerfile.fedora .
-
-      - name: Extract RPM Package
+      - name: Install dependencies
         run: |
-          mkdir -p build
-          docker run --rm -v $(pwd)/build:/out nynetify-rpm cp /app/nynetify-1.0.0-1.x86_64.rpm /out/
+          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-devel \
+            python3-pip python3-pillow rpm-build wget
+
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Package RPM
+        run: |
+          set -e
+          mkdir -p rpmbuild/BUILD rpmbuild/RPMS/x86_64 rpmbuild/BUILDROOT rpmbuild/SPECS
+          
+          BR="rpmbuild/BUILDROOT/nynetify-1.0.0-1.x86_64"
+          mkdir -p "$BR/opt/nynetify/bin" "$BR/opt/nynetify/lib" "$BR/usr/bin"
+          
+          # Main binary
+          cp build/Nynetify "$BR/opt/nynetify/bin/"
+          
+          # mpv binary
+          cp /usr/bin/mpv "$BR/opt/nynetify/bin/"
+          
+          # mpv libs (non-system only)
+          ldd /usr/bin/mpv | grep '=> /' | awk '{print $3}' | while read -r lib; do
+            base=$(basename "$lib")
+            case "$base" in
+              linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*|libz.so*|libzstd*)
+                ;;
+              *)
+                [ -f "$lib" ] && cp -L "$lib" "$BR/opt/nynetify/lib/" || true
+                ;;
+            esac
+          done
+          
+          # Nynetify libs (non-system only)
+          ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do
+            base=$(basename "$lib")
+            case "$base" in
+              linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*)
+                ;;
+              *)
+                if [ -f "$lib" ] && [ ! -f "$BR/opt/nynetify/lib/$base" ]; then
+                  cp -L "$lib" "$BR/opt/nynetify/lib/" || true
+                fi
+                ;;
+            esac
+          done
+          
+          # yt-dlp
+          wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
+            -O "$BR/opt/nynetify/bin/yt-dlp" || true
+          chmod +x "$BR/opt/nynetify/bin/yt-dlp"
+          
+          # wrapper
+          cp packaging/linux/nynetify.wrapper "$BR/opt/nynetify/nynetify"
+          chmod +x "$BR/opt/nynetify/nynetify"
+          
+          # symlink
+          ln -s /opt/nynetify/nynetify "$BR/usr/bin/nynetify"
+          
+          # spec
+          cp packaging/linux/nynetify.spec rpmbuild/SPECS/
+          
+          # build
+          rpmbuild -bb rpmbuild/SPECS/nynetify.spec --buildroot "$BR" --target x86_64
+          
+          # copy result
+          cp rpmbuild/RPMS/x86_64/*.rpm build/
 
       - name: Verify RPM
-        run: test -f build/nynetify-*.rpm && echo "RPM OK" || { echo "RPM NOT FOUND"; exit 1; }
+        run: ls -lh build/*.rpm
 
       - uses: actions/upload-artifact@v4
         with:
           name: Nynetify-rpm
-          path: build/nynetify-*.rpm
+          path: build/*.rpm
           compression-level: 0
 
   # ═══════════════════════════════════════════════
