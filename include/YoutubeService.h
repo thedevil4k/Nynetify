@@ -280,8 +280,6 @@ public:
     }
 
     static std::string execute(const std::string& cmd, bool debugMode = false) {
-        std::array<char, 256> buffer;
-        std::string result;
 #ifdef _WIN32
         if (debugMode) {
             std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
