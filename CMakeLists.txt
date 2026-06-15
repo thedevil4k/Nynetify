@@ -45,18 +45,22 @@ endif()
 # ── Install ──────────────────────────────────
 install(TARGETS Nynetify DESTINATION bin)
 
-# ── CPack (Linux packages) ────────────────────
+# ── CPack Configuration ──────────────────────
 if(UNIX)
+    # General package info
     set(CPACK_GENERATOR "DEB;RPM")
     set(CPACK_PACKAGE_NAME "nynetify")
     set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "YouTube Audio Player")
-    set(CPACK_PACKAGE_CONTACT "https://github.com/anomalyco/Nynetify")
+    set(CPACK_PACKAGE_DESCRIPTION "A self-contained YouTube audio streaming application that bundles mpv and yt-dlp.")
+    set(CPACK_PACKAGE_CONTACT "https://github.com/thedevil4k/Nynetify")
     set(CPACK_PACKAGE_VENDOR "Nynetify")
-
-    set(CPACK_DEBIAN_PACKAGE_DEPENDS "mpv")
-    set(CPACK_RPM_PACKAGE_REQUIRES "mpv")
-
+    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/thedevil4k/Nynetify")
+    
+    # Install prefix for self-contained app
+    set(CPACK_PACKAGING_INSTALL_PREFIX "/opt/nynetify")
+    
+    # Architecture detection
     if(NOT CPACK_DEBIAN_PACKAGE_ARCHITECTURE)
         if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|aarch64|arm64)$")
             set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
@@ -67,7 +71,7 @@ if(UNIX)
         endif()
     endif()
     set(CPACK_DEBIAN_FILE_NAME "nynetify-${PROJECT_VERSION}-${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}.deb")
-
+    
     if(NOT CPACK_RPM_PACKAGE_ARCHITECTURE)
         if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|aarch64|arm64)$")
             set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
@@ -78,7 +82,17 @@ if(UNIX)
         endif()
     endif()
     set(CPACK_RPM_FILE_NAME "nynetify-${PROJECT_VERSION}-${CPACK_RPM_PACKAGE_ARCHITECTURE}.rpm")
-
-    set(CPACK_PACKAGE_INSTALL_DIR "/opt/nynetify")
+    
+    # Dependencies (system only)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3, libc6")
+    set(CPACK_RPM_PACKAGE_REQUIRES "python3")
+    
+    # Scripts for permissions and setup
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_SOURCE_DIR}/packaging/linux/postinst")
+    set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${CMAKE_SOURCE_DIR}/packaging/linux/postinst")
+    
+    # License
+    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+    
     include(CPack)
 endif()

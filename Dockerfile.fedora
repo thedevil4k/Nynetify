@@ -1,6 +1,5 @@
 FROM fedora:40
 
-# Install dependencies
 RUN dnf install -y \
     cmake \
     gcc-c++ \
@@ -16,111 +15,6 @@ RUN dnf install -y \
 
 WORKDIR /app
 
-# Copy source code
 COPY . .
 
-# Convert icon
-RUN python3 -c "from PIL import Image; img=Image.open('Nynetify.png'); img.save('assets/Nynetify.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
-
-# Configure and Build
-RUN cmake -B build -DCMAKE_BUILD_TYPE=Release
-RUN cmake --build build
-
-# Bundle dependencies and create RPM package
-RUN set -e; \
-    VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    mkdir -p "$RPM_BUILD_DIR/BUILD" \
-    && mkdir -p "$RPM_BUILD_DIR/RPMS/$ARCH" \
-    && mkdir -p "$RPM_BUILD_DIR/BUILDROOT" \
-    && mkdir -p "$RPM_BUILD_DIR/SPECS" \
-    && mkdir -p "$RPM_BUILD_DIR/SOURCES"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    mkdir -p "$BR/opt/nynetify/bin" \
-    && mkdir -p "$BR/opt/nynetify/lib" \
-    && mkdir -p "$BR/usr/bin"
-
-# 1. Nynetify binary
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    cp build/Nynetify "$BR/opt/nynetify/bin/"
-
-# 2. Bundle mpv + its non-system library dependencies
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    cp /usr/bin/mpv "$BR/opt/nynetify/bin/" \
-    && ldd /usr/bin/mpv | grep '=> /' | awk '{print $3}' | while read -r lib; do \
-      base="$(basename "$lib")"; \
-      case "$base" in \
-        linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*|libgcc_s*|libz.so*|libzstd*) \
-          ;; \
-        *) \
-          if [ -f "$lib" ]; then \
-            cp -L "$lib" "$BR/opt/nynetify/lib/"; \
-          fi \
-          ;; \
-      esac; \
-    done
-
-# Also copy Nynetify's non-system lib deps
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    ldd build/Nynetify | grep '=> /' | awk '{print $3}' | while read -r lib; do \
-      base="$(basename "$lib")"; \
-      case "$base" in \
-        linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread*|libdl.so*|librt.so*|libstdc++*) \
-          ;; \
-        *) \
-          if [ -f "$lib" ] && [ ! -f "$BR/opt/nynetify/lib/$base" ]; then \
-            cp -L "$lib" "$BR/opt/nynetify/lib/"; \
-          fi \
-          ;; \
-      esac; \
-    done
-
-# 3. Bundle yt-dlp
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
-      -O "$BR/opt/nynetify/bin/yt-dlp" \
-    && chmod +x "$BR/opt/nynetify/bin/yt-dlp"
-
-# 4. Launcher wrapper
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    cp packaging/linux/nynetify.wrapper "$BR/opt/nynetify/nynetify" \
-    && chmod +x "$BR/opt/nynetify/nynetify"
-
-# 5. Symlink
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    ln -s /opt/nynetify/nynetify "$BR/usr/bin/nynetify"
-
-# 6. SPEC file
-RUN cp packaging/linux/nynetify.spec /root/rpmbuild/SPECS/nynetify.spec
-
-# 7. Build RPM
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    rpmbuild -bb /root/rpmbuild/SPECS/nynetify.spec --buildroot "$BR" --target "$ARCH"
-
-# 8. Copy resulting RPM to /app/
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    cp "$RPM_BUILD_DIR/RPMS/$ARCH/nynetify-1.0.0-1.x86_64.rpm" /app/
+RUN chmod +x scripts/build-rpm.sh && scripts/build-rpm.sh
