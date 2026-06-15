@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake build-essential pkg-config \
-            libfltk1.3-dev libmpv-dev python3-pip python3-pil wget
+            libfltk1.3-dev libmpv-dev mpv python3-pip python3-pil wget
 
       - name: Build
         run: |
@@ -72,7 +72,7 @@ jobs:
           
           # wrapper
           cp packaging/linux/nynetify.wrapper pkg/opt/nynetify/nynetify
-          chmod +x pkg/opt/netify/nynetify
+          chmod +x pkg/opt/nynetify/nynetify
           
           # symlink
           ln -s /opt/nynetify/nynetify pkg/usr/bin/nynetify
@@ -102,7 +102,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-devel \
+          sudo dnf install -y cmake gcc-c++ pkgconfig fltk-devel mpv-devel mpv \
             python3-pip python3-pillow rpm-build wget
 
       - name: Build
