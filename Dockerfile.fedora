@@ -112,21 +112,14 @@ RUN VERSION="1.0.0"; \
 # 6. SPEC file
 RUN cp packaging/linux/nynetify.spec /root/rpmbuild/SPECS/nynetify.spec
 
-# 7. Copy BUILDROOT
-RUN VERSION="1.0.0"; \
-    ARCH="x86_64"; \
-    RPM_BUILD_DIR="/root/rpmbuild"; \
-    BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
-    cp -r "$BR" "$RPM_BUILD_DIR/BUILDROOT/nynetify-1.0.0-1.x86_64"
-
-# 8. Build RPM
+# 7. Build RPM
 RUN VERSION="1.0.0"; \
     ARCH="x86_64"; \
     RPM_BUILD_DIR="/root/rpmbuild"; \
     BR="$RPM_BUILD_DIR/BUILDROOT/nynetify-${VERSION}-1.${ARCH}"; \
     rpmbuild -bb /root/rpmbuild/SPECS/nynetify.spec --buildroot "$BR" --target "$ARCH"
 
-# 9. Copy resulting RPM to /app/
+# 8. Copy resulting RPM to /app/
 RUN VERSION="1.0.0"; \
     ARCH="x86_64"; \
     RPM_BUILD_DIR="/root/rpmbuild"; \

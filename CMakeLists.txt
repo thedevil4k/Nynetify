@@ -4,20 +4,8 @@ project(Nynetify VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 20)
 
 # ── Dependencies ──────────────────────────────
-if(UNIX)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(FLTK fltk)
-    if(NOT FLTK_FOUND)
-        pkg_check_modules(FLTK fltk1.3)
-    endif()
-    if(NOT FLTK_FOUND)
-        message(FATAL_ERROR "FLTK not found via pkg-config. Install libfltk1.3-dev (Debian/Ubuntu) or fltk-devel (Fedora).")
-    endif()
-    include_directories(${FLTK_INCLUDE_DIRS})
-else()
-    find_package(FLTK REQUIRED)
-    include_directories(${FLTK_INCLUDE_DIR})
-endif()
+find_package(FLTK REQUIRED)
+include_directories(${FLTK_INCLUDE_DIR})
 include_directories(include)
 
 if(WIN32)
@@ -41,8 +29,9 @@ if(WIN32)
     target_link_libraries(Nynetify PRIVATE psapi iphlpapi)
 endif()
 
+target_link_libraries(Nynetify PRIVATE ${FLTK_LIBRARIES} mpv)
+
 if(UNIX)
-    target_link_libraries(Nynetify PRIVATE ${FLTK_LINK_LIBRARIES} mpv)
     set(_fltk_compat "${CMAKE_BINARY_DIR}/fltk_compat.h")
     file(WRITE "${_fltk_compat}"
         "#pragma once\n"
@@ -51,14 +40,10 @@ if(UNIX)
         "inline void fl_antialias(int) {}\n"
         "#endif\n")
     target_compile_options(Nynetify PRIVATE -include "${_fltk_compat}")
-else()
-    target_link_libraries(Nynetify PRIVATE ${FLTK_LIBRARIES} mpv)
 endif()
 
 # ── Install ──────────────────────────────────
-# Install to 'bin', CPack/workflow will relocate
 install(TARGETS Nynetify DESTINATION bin)
-
 
 # ── CPack (Linux packages) ────────────────────
 if(UNIX)
@@ -69,7 +54,6 @@ if(UNIX)
     set(CPACK_PACKAGE_CONTACT "https://github.com/anomalyco/Nynetify")
     set(CPACK_PACKAGE_VENDOR "Nynetify")
 
-    # Depend on the system mpv package + core libs; yt-dlp is bundled
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "mpv")
     set(CPACK_RPM_PACKAGE_REQUIRES "mpv")
 
