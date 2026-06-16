@@ -22,6 +22,7 @@ add_executable(Nynetify
     src/PlayerController.cpp
     src/ViewManager.cpp
     src/AppCallbacks.cpp
+    src/InvidiousClient.cpp
 )
 
 if(WIN32)
@@ -30,7 +31,7 @@ if(WIN32)
     target_link_libraries(Nynetify PRIVATE psapi iphlpapi)
 endif()
 
-target_link_libraries(Nynetify PRIVATE ${FLTK_LIBRARIES} mpv)
+target_link_libraries(Nynetify PRIVATE ${FLTK_LIBRARIES} mpv curl)
 
 if(UNIX)
     set(_fltk_compat "${CMAKE_BINARY_DIR}/fltk_compat.h")

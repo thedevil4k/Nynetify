@@ -25,6 +25,10 @@ struct AppSettings {
     bool enableAntialiasing = true;
     bool debugMode = false;
     std::string downloadPath;
+    
+    // Search provider preference
+    enum class SearchProvider { Invidious, YTDLP };
+    SearchProvider searchProvider = SearchProvider::Invidious;
 };
 
 /* Persistence helpers */

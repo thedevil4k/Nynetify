@@ -21,21 +21,16 @@ static const char* NYN_NULL_REDIRECT = " 2>NUL";
 static const char* NYN_NULL_REDIRECT = " 2>/dev/null";
 #endif
 
-struct SearchResult {
-    std::string title;
-    std::string author;
-    std::string video_id;
-    std::string channel_id;
-    std::string duration;
-    bool is_playlist = false;
-    bool is_channel = false;
-};
+#include "SearchResult.h"
+#include "InvidiousClient.h"
 
 class YoutubeService {
 public:
     static inline bool debugMode = false;
+    static inline bool useInvidious = true;
 
     static void setDebugMode(bool enabled) { debugMode = enabled; }
+    static void setUseInvidious(bool enabled) { useInvidious = enabled; }
 
     static std::vector<SearchResult> get_metadata(const std::vector<std::string>& ids) {
         std::vector<SearchResult> results;
@@ -72,6 +67,20 @@ public:
     static std::vector<SearchResult> search(const std::string& query, const std::string& region = "", int filter_type = 0, int max_results = 50) {
         std::vector<SearchResult> results;
 
+        // Try Invidious first for general searches (filter_type 0 or 1)
+        if (useInvidious && (filter_type == 0 || filter_type == 1)) {
+            std::string modified_query = query;
+            if (filter_type == 1) {
+                modified_query += " song";
+            }
+            results = InvidiousClient::search(modified_query, max_results);
+            if (!results.empty()) {
+                return results;
+            }
+            std::cerr << "[YoutubeService] Invidious search returned empty, falling back to yt-dlp" << std::endl;
+        }
+
+        // Fallback to yt-dlp for all searches
         std::string command;
 
         if (filter_type == 2) { // Playlist: use YouTube search URL with playlist filter

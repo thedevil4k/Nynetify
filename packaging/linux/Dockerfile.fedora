@@ -7,6 +7,7 @@ RUN dnf install -y \
     fltk-devel \
     mpv-devel \
     mpv \
+    libcurl-devel \
     python3-pip \
     python3-pillow \
     rpm-build \

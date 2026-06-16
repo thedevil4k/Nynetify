@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake build-essential pkg-config \
-            libfltk1.3-dev libmpv-dev mpv python3-pip python3-pil wget
+            libfltk1.3-dev libmpv-dev libcurl4-openssl-dev mpv python3-pip python3-pil wget
 
       - name: Build
         run: |
