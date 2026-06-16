@@ -4,6 +4,7 @@ project(Nynetify VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 20)
 
 # ── Dependencies ──────────────────────────────
+set(FLTK_SKIP_FLUID TRUE)
 find_package(FLTK REQUIRED)
 include_directories(${FLTK_INCLUDE_DIR})
 include_directories(include)
