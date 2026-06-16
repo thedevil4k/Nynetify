@@ -26,19 +26,6 @@
 #include "YoutubeService.h"
 
 /* ================================================================
- * Greeting (time-of-day based)
- * ================================================================ */
-std::string get_greeting() {
-    time_t rawtime;
-    time(&rawtime);
-    auto* timeinfo = localtime(&rawtime);
-    int hour = timeinfo->tm_hour;
-    if (hour < 12) return lang->greeting_morning;
-    if (hour < 18) return lang->greeting_afternoon;
-    return lang->greeting_evening;
-}
-
-/* ================================================================
  * Playback callbacks
  * ================================================================ */
 
@@ -339,7 +326,6 @@ void apply_language() {
     if (sidebarPrefsBtn)      sidebarPrefsBtn->copy_label(lang->settings);
     if (langToggleBtn)        langToggleBtn->copy_label(lang->language_btn);
 
-    if (homeGreetingBox) homeGreetingBox->copy_label(get_greeting().c_str());
     if (homeBrowseTitle)  homeBrowseTitle->copy_label(lang->browse_categories);
     if (homeFeaturedTitle) homeFeaturedTitle->copy_label(lang->now_playing_featured);
     if (homeFeatDesc)     homeFeatDesc->copy_label(lang->feat_desc);
@@ -579,7 +565,28 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
         save_settings();
     });
 
-    auto* bufLabel = new Fl_Box(20, 150, 260, 20);
+        });
+
+    auto* providerLabel = new Fl_Box(20, 180, 260, 20, lang->search_provider_label);
+    providerLabel->labelcolor(Theme::TEXT_SECONDARY);
+    providerLabel->labelsize(12);
+    providerLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    auto* providerChoice = new Fl_Choice(20, 200, 260, 30);
+    providerChoice->color(Theme::HOVER);
+    providerChoice->textcolor(Theme::TEXT_PRIMARY);
+    providerChoice->add(lang->provider_invidious);
+    providerChoice->add(lang->provider_ytdlp);
+    providerChoice->value(static_cast<int>(settings.searchProvider));
+    providerChoice->callback([](Fl_Widget* w, void*) {
+        auto* c = (Fl_Choice*)w;
+        settings.searchProvider = c->value() == 0 ?
+            AppSettings::SearchProvider::Invidious : AppSettings::SearchProvider::YTDLP;
+        YoutubeService::setUseInvidious(settings.searchProvider == AppSettings::SearchProvider::Invidious);
+        save_settings();
+    });
+
+    auto* bufLabel = new Fl_Box(20, 240, 260, 20);
     bufLabel->labelcolor(Theme::TEXT_SECONDARY);
     bufLabel->labelsize(12);
     bufLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);

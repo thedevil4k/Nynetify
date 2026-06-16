@@ -109,7 +109,6 @@ ModernButton* sidebarNewPlaylistBtn = nullptr;
 ModernButton* sidebarPrefsBtn = nullptr;
 ModernButton* langToggleBtn = nullptr;
 
-Fl_Box* homeGreetingBox = nullptr;
 Fl_Box* homeBrowseTitle = nullptr;
 Fl_Box* homeFeaturedTitle = nullptr;
 Fl_Box* homeFeatDesc = nullptr;
@@ -239,14 +238,7 @@ int main(int argc, char **argv) {
     homeBg->box(FL_FLAT_BOX);
     homeBg->color(Theme::BACKGROUND);
 
-    homeGreetingBox = new Fl_Box(220, 20, 500, 40);
-    homeGreetingBox->copy_label(get_greeting().c_str());
-    homeGreetingBox->labelcolor(Theme::TEXT_PRIMARY);
-    homeGreetingBox->labelsize(28);
-    homeGreetingBox->labelfont(FL_HELVETICA_BOLD);
-    homeGreetingBox->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-
-    homeBrowseTitle = new Fl_Box(220, 70, 200, 25, lang->browse_categories);
+    homeBrowseTitle = new Fl_Box(220, 20, 200, 25, lang->browse_categories);
     homeBrowseTitle->labelcolor(Theme::TEXT_PRIMARY);
     homeBrowseTitle->labelsize(16);
     homeBrowseTitle->labelfont(FL_HELVETICA_BOLD);
@@ -456,6 +448,7 @@ int main(int argc, char **argv) {
 
     load_settings();
     YoutubeService::setDebugMode(settings.debugMode);
+    YoutubeService::setUseInvidious(settings.searchProvider == AppSettings::SearchProvider::Invidious);
     apply_language();
 
     window->end();

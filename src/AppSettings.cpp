@@ -48,6 +48,7 @@ void save_settings() {
     f << "initialFetchSize=" << settings.initialFetchSize         << "\n";
     f << "scrollBatchSize="  << settings.scrollBatchSize          << "\n";
     f << "enableAntialiasing=" << (settings.enableAntialiasing ? 1 : 0) << "\n";
+    f << "searchProvider="   << static_cast<int>(settings.searchProvider) << "\n";
     f << "downloadPath="     << settings.downloadPath             << "\n";
 }
 
@@ -69,6 +70,7 @@ void load_settings() {
         else if (key == "initialFetchSize") settings.initialFetchSize = std::stoi(val);
         else if (key == "scrollBatchSize")  settings.scrollBatchSize  = std::stoi(val);
         else if (key == "enableAntialiasing") settings.enableAntialiasing = (val == "1");
+        else if (key == "searchProvider") settings.searchProvider = static_cast<AppSettings::SearchProvider>(std::stoi(val));
         else if (key == "downloadPath" && !val.empty()) settings.downloadPath = val;
     }
 }

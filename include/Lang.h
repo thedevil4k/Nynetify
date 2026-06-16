@@ -15,9 +15,6 @@ struct Lang {
     const char* browse_categories;
     const char* card_cats[6];
     const char* now_playing_featured;
-    const char* greeting_morning;
-    const char* greeting_afternoon;
-    const char* greeting_evening;
     const char* feat_desc;
 
     // Search
@@ -91,6 +88,9 @@ struct Lang {
     const char* batch_label;
     const char* enable_antialiasing;
     const char* enable_debug_mode;
+    const char* search_provider_label;
+    const char* provider_invidious;
+    const char* provider_ytdlp;
 
     // EQ
     const char* enable_eq;
@@ -191,6 +191,9 @@ inline Lang LANG_EN = {
     "Batch: +%d per scroll",
     " Enable Antialiasing",
     " Enable Debug Mode",
+    " Search Provider",
+    "Invidious (Fast, Native)",
+    "yt-dlp (Compat, Slow)",
     // EQ
     " ENABLE EQ",
     // Download
@@ -287,6 +290,9 @@ inline Lang LANG_ES = {
     "Lote: +%d por scroll",
     " Activar Antialiasing",
     " Modo Debug",
+    " Proveedor de Busqueda",
+    "Invidious (Rapido, Nativo)",
+    "yt-dlp (Compatible, Lento)",
     // EQ
     " ACTIVAR EQ",
     // Download
