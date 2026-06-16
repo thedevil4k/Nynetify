@@ -8,8 +8,7 @@
 #include <iomanip>
 #include <curl/curl.h>
 #include "nlohmann/json.hpp"
-
-struct SearchResult;
+#include "SearchResult.h"
 
 class InvidiousClient {
 public:
