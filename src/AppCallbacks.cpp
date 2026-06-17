@@ -565,8 +565,6 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
         save_settings();
     });
 
-        });
-
     auto* providerLabel = new Fl_Box(20, 180, 260, 20, lang->search_provider_label);
     providerLabel->labelcolor(Theme::TEXT_SECONDARY);
     providerLabel->labelsize(12);
