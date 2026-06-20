@@ -530,23 +530,23 @@ void scroll_batch_cb(Fl_Widget* w, void* data) {
 void open_prefs_window_cb(Fl_Widget* w, void* data) {
     if (prefWin) { prefWin->show(); return; }
 
-    prefWin = new Fl_Double_Window(300, 440, lang->settings_title);
+    prefWin = new Fl_Double_Window(300, 460, lang->settings_title);
     prefWin->color(Theme::SIDEBAR);
     if (Fl::first_window())
         prefWin->position(Fl::first_window()->x() + (Fl::first_window()->w() - prefWin->w()) / 2,
                           Fl::first_window()->y() + (Fl::first_window()->h() - prefWin->h()) / 2);
 
-    auto* thumbToggle = new Fl_Check_Button(20, 20, 260, 30, lang->load_thumbnails);
+    auto* thumbToggle = new Fl_Check_Button(20, 15, 260, 25, lang->load_thumbnails);
     thumbToggle->labelcolor(Theme::TEXT_PRIMARY);
     thumbToggle->value(settings.loadThumbnails ? 1 : 0);
     thumbToggle->callback(prefs_toggle_cb);
 
-    auto* statusToggle = new Fl_Check_Button(20, 60, 260, 30, lang->show_status_bar);
+    auto* statusToggle = new Fl_Check_Button(20, 45, 260, 25, lang->show_status_bar);
     statusToggle->labelcolor(Theme::TEXT_PRIMARY);
     statusToggle->value(settings.showStatusBar ? 1 : 0);
     statusToggle->callback(status_toggle_cb);
 
-    auto* aaToggle = new Fl_Check_Button(20, 100, 260, 30, lang->enable_antialiasing);
+    auto* aaToggle = new Fl_Check_Button(20, 75, 260, 25, lang->enable_antialiasing);
     aaToggle->labelcolor(Theme::TEXT_PRIMARY);
     aaToggle->value(settings.enableAntialiasing ? 1 : 0);
     aaToggle->callback([](Fl_Widget* w, void*) {
@@ -556,7 +556,7 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
         if (Fl::first_window()) Fl::first_window()->redraw();
     });
 
-    auto* debugToggle = new Fl_Check_Button(20, 140, 260, 30, lang->enable_debug_mode);
+    auto* debugToggle = new Fl_Check_Button(20, 105, 260, 25, lang->enable_debug_mode);
     debugToggle->labelcolor(Theme::TEXT_PRIMARY);
     debugToggle->value(settings.debugMode ? 1 : 0);
     debugToggle->callback([](Fl_Widget* w, void*) {
@@ -565,12 +565,12 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
         save_settings();
     });
 
-    auto* providerLabel = new Fl_Box(20, 180, 260, 20, lang->search_provider_label);
+    auto* providerLabel = new Fl_Box(20, 145, 260, 15, lang->search_provider_label);
     providerLabel->labelcolor(Theme::TEXT_SECONDARY);
     providerLabel->labelsize(12);
     providerLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-    auto* providerChoice = new Fl_Choice(20, 200, 260, 30);
+    auto* providerChoice = new Fl_Choice(20, 163, 260, 27);
     providerChoice->color(Theme::HOVER);
     providerChoice->textcolor(Theme::TEXT_PRIMARY);
     providerChoice->add(lang->provider_invidious);
@@ -584,7 +584,7 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
         save_settings();
     });
 
-    auto* bufLabel = new Fl_Box(20, 240, 260, 20);
+    auto* bufLabel = new Fl_Box(20, 207, 260, 15);
     bufLabel->labelcolor(Theme::TEXT_SECONDARY);
     bufLabel->labelsize(12);
     bufLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
@@ -592,47 +592,47 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
     snprintf(initBuf, sizeof(initBuf), lang->max_buffer_label, settings.bufferSizeMB);
     bufLabel->copy_label(initBuf);
 
-    auto* bufSlider = new ModernSlider(20, 175, 260, 20);
+    auto* bufSlider = new ModernSlider(20, 225, 260, 20);
     bufSlider->type(FL_HOR_SLIDER);
     bufSlider->bounds(1, 100);
     bufSlider->step(1);
     bufSlider->value((double)settings.bufferSizeMB);
     bufSlider->callback(buffer_cb, bufLabel);
 
-    auto* fetchLabel = new Fl_Box(20, 215, 260, 20);
+    auto* fetchLabel = new Fl_Box(20, 262, 260, 15);
     fetchLabel->labelcolor(Theme::TEXT_SECONDARY);
     fetchLabel->labelsize(12);
     fetchLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     snprintf(initBuf, sizeof(initBuf), lang->fetch_size_label, settings.initialFetchSize);
     fetchLabel->copy_label(initBuf);
 
-    auto* fetchSlider = new ModernSlider(20, 240, 260, 20);
+    auto* fetchSlider = new ModernSlider(20, 280, 260, 20);
     fetchSlider->type(FL_HOR_SLIDER);
     fetchSlider->bounds(20, 200);
     fetchSlider->step(10);
     fetchSlider->value((double)settings.initialFetchSize);
     fetchSlider->callback(fetch_size_cb, fetchLabel);
 
-    auto* batchLabel = new Fl_Box(20, 280, 260, 20);
+    auto* batchLabel = new Fl_Box(20, 317, 260, 15);
     batchLabel->labelcolor(Theme::TEXT_SECONDARY);
     batchLabel->labelsize(12);
     batchLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     snprintf(initBuf, sizeof(initBuf), lang->batch_label, settings.scrollBatchSize);
     batchLabel->copy_label(initBuf);
 
-    auto* batchSlider = new ModernSlider(20, 305, 260, 20);
+    auto* batchSlider = new ModernSlider(20, 335, 260, 20);
     batchSlider->type(FL_HOR_SLIDER);
     batchSlider->bounds(1, 10);
     batchSlider->step(1);
     batchSlider->value((double)settings.scrollBatchSize);
     batchSlider->callback(scroll_batch_cb, batchLabel);
 
-    auto* dlLabel = new Fl_Box(20, 345, 260, 20, lang->download_path);
+    auto* dlLabel = new Fl_Box(20, 372, 260, 15, lang->download_path);
     dlLabel->labelcolor(Theme::TEXT_SECONDARY);
     dlLabel->labelsize(12);
     dlLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-    auto* dlInput = new Fl_Input(20, 365, 205, 25);
+    auto* dlInput = new Fl_Input(20, 390, 205, 25);
     dlInput->value(settings.downloadPath.c_str());
     dlInput->textcolor(Theme::TEXT_PRIMARY);
     dlInput->color(Theme::HOVER);
@@ -643,7 +643,7 @@ void open_prefs_window_cb(Fl_Widget* w, void* data) {
         save_settings();
     });
 
-    auto* browseBtn = new ModernButton(230, 365, 50, 25, lang->browse);
+    auto* browseBtn = new ModernButton(230, 390, 50, 25, lang->browse);
     browseBtn->color(Theme::HOVER);
     browseBtn->labelcolor(Theme::TEXT_PRIMARY);
     browseBtn->labelsize(11);
