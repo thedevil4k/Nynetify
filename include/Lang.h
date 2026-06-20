@@ -123,9 +123,6 @@ inline Lang LANG_EN = {
     "Browse Categories",
     {"Classic Rock", "Hip Hop", "Synthwave", "Lo-fi Beats", "Top Hits", "Liked Songs"},
     "Now Playing / Featured",
-    "Good Morning",
-    "Good Afternoon",
-    "Good Evening",
     "Connect, play, and discover millions of tracks directly via Youtube Audio streaming.\n"
     "Create playlists inside the Your Library section, favorite your beloved tracks with the heart button, "
     "and fine-tune your frequencies using our build-in 10-band equalizer.",
@@ -222,9 +219,6 @@ inline Lang LANG_ES = {
     "Explorar categorias",
     {"Rock Clasico", "Hip Hop", "Synthwave", "Lo-fi Beats", "Exitos", "Me gusta"},
     "Reproduciendo / Destacados",
-    "Buenos dias",
-    "Buenas tardes",
-    "Buenas noches",
     "Conecta, reproduce y descubre millones de canciones via Youtube Audio.\n"
     "Crea listas de reproduccion, marca tus canciones favoritas con el corazon "
     "y ajusta el sonido con el ecualizador integrado de 10 bandas.",
