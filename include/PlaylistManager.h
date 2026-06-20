@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_set>
 #include <fstream>
 #include <iostream>
 #include <filesystem>
@@ -12,6 +13,22 @@ namespace fs = std::filesystem;
 
 class PlaylistManager {
 public:
+    static inline std::unordered_set<std::string> fav_cache;
+
+    static void load_fav_cache() {
+        fav_cache.clear();
+        std::ifstream f("FAVS/favs.txt");
+        std::string line;
+        while (std::getline(f, line)) {
+            if (line.size() > 2 && line.substr(0, 2) == "v=") {
+                std::string id = line.substr(2);
+                size_t cpos = id.find(' ');
+                if (cpos != std::string::npos) id = id.substr(0, cpos);
+                fav_cache.insert(id);
+            }
+        }
+    }
+
     static void ensure_directories() {
         if (!fs::exists("FAVS")) fs::create_directory("FAVS");
         if (!fs::exists("PLAYLIST")) fs::create_directory("PLAYLIST");
@@ -22,12 +39,14 @@ public:
             std::ofstream f(favPath);
             f << "[FAVS]\n";
         }
+        load_fav_cache();
     }
 
     static void add_to_favorites(const std::string& video_id) {
         if (is_favorite(video_id)) return;
         std::ofstream f("FAVS/favs.txt", std::ios::app);
         f << "v=" << video_id << "\n";
+        fav_cache.insert(video_id);
     }
 
     static void remove_from_favorites(const std::string& video_id) {
@@ -43,14 +62,11 @@ public:
                 }
             }
         }
+        fav_cache.erase(video_id);
     }
 
     static bool is_favorite(const std::string& video_id) {
-        auto favs = get_favorites();
-        for (const auto& item : favs) {
-            if (!item.is_playlist && item.value == video_id) return true;
-        }
-        return false;
+        return fav_cache.contains(video_id);
     }
 
     static void add_playlist_to_favorites(const std::string& playlist_name) {
