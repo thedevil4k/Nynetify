@@ -1,5 +1,6 @@
 #include <FL/fl_draw.H>
 #include <FL/Fl.H>
+#include <cstdint>
 #include <FL/Fl_Menu_Item.H>
 #include "UIWidgets.h"
 #include "Globals.h"
@@ -250,7 +251,7 @@ void PlaylistSelectionWindow::add_cb(Fl_Widget*, void* data) {
     int val = win->list->value();
     if (val > 0) {
         std::string choice = win->list->text(val);
-        if (choice == "FAVORITES") {
+        if (choice == lang->favorites_btn) {
             PlaylistManager::add_to_favorites(win->vid);
         } else {
             PlaylistManager::add_to_playlist(choice, win->vid);

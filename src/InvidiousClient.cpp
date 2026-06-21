@@ -1,5 +1,6 @@
 #include "InvidiousClient.h"
 #include <curl/curl.h>
+#include <cctype>
 #include <iostream>
 #include <iomanip>
 #include <sstream>

@@ -17,7 +17,7 @@ class SystemTray {
     void hide_window();
     void show_window();
 
-    static long __stdcall wnd_proc(void*, unsigned int, unsigned long long, long long);
+    static long long __stdcall wnd_proc(void*, unsigned int, unsigned long long, long long);
     static SystemTray* self;
 
 public:

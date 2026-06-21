@@ -27,6 +27,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cstdint>
 #include <ctime>
 #include <cstdlib>
 #include <filesystem>

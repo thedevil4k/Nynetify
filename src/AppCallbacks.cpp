@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <cstdio>
 #include <ctime>
+#include <cctype>
+#include <cstdint>
 #include <filesystem>
 #ifdef _WIN32
 #include <windows.h>
@@ -934,7 +936,7 @@ void radio_add_custom_cb(Fl_Widget* w, void* data) {
             show_radio_view();
         }
         btn->parent()->hide();
-        delete (Fl_Input**)d;
+        delete[] (Fl_Input**)d;
     }, new Fl_Input*[2]{nameInput, urlInput});
 
     win->end();
@@ -963,6 +965,5 @@ void radio_search_online_cb(Fl_Widget* w, void* data) {
         RadioManager::stations.push_back(s);
     }
     RadioManager::sort_by_country();
-    RadioManager::save_customs();
     show_radio_view();
 }

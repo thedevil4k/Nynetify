@@ -95,7 +95,7 @@ void SystemTray::quit() {
     DestroyWindow((HWND)hwnd);
 }
 
-long __stdcall SystemTray::wnd_proc(void* hwnd, unsigned int msg, unsigned long long wParam, long long lParam) {
+long long __stdcall SystemTray::wnd_proc(void* hwnd, unsigned int msg, unsigned long long wParam, long long lParam) {
     if (!self) return DefWindowProc((HWND)hwnd, msg, wParam, lParam);
 
     switch (msg) {
