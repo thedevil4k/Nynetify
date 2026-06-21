@@ -5,6 +5,7 @@
 #include <thread>
 #include <cstdlib>
 #include <iomanip>
+#include <cctype>
 #include "RadioManager.h"
 
 static std::string url_encode(const std::string& value) {
@@ -85,12 +86,6 @@ void RadioManager::save_favs() {
     for (int id : fav_cache) ofs << id << "\n";
 }
 
-struct RadioSearchTask {
-    std::string query;
-    std::vector<RadioStation> results;
-    bool done = false;
-};
-
 std::vector<RadioStation> RadioManager::search_online(const std::string& query) {
     std::vector<RadioStation> results;
     std::string url = "https://de1.api.radio-browser.info/json/stations/byname/"
@@ -103,7 +98,8 @@ std::vector<RadioStation> RadioManager::search_online(const std::string& query) 
 
     try {
         std::ifstream ifs(temp_file);
-        std::string json((std::istreambuf_iterator<char>(ifs)), {});
+        std::string json;
+        std::getline(ifs, json, '\0');
         ifs.close();
         std::filesystem::remove(temp_file);
 
