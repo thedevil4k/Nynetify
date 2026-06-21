@@ -23,6 +23,8 @@
 #include "AppSettings.h"
 #include "UIWidgets.h"
 #include "PlaylistManager.h"
+#include "RadioManager.h"
+#include "RadioStation.h"
 #include "YoutubeService.h"
 
 /* ================================================================
@@ -42,8 +44,46 @@ void play_selected_cb(Fl_Widget* w, void* data) {
         }
     }
 
-    if (line <= 0 || line > (int)last_results.size()) return;
+    if (line <= 0) return;
     if (!Fl::event_clicks() && data == nullptr) return;   /* require double-click */
+
+    /* Channel view: lines contain headers/separators without '\t'.
+     * Skip them and compute the real index into last_results. */
+    if (current_category == "CHANNEL") {
+        const char* t = browser->text(line);
+        if (!t || !strchr(t, '\t')) return;  /* header / separator → ignore */
+
+        int offset = 0;
+        for (int i = 1; i < line; i++) {
+            const char* ti = browser->text(i);
+            if (!ti || !strchr(ti, '\t')) offset++;
+        }
+        int idx = line - 1 - offset;
+        if (idx < 0 || idx >= (int)last_results.size()) return;
+
+        if (last_results[idx].is_playlist) {
+            show_youtube_playlist_view(last_results[idx].video_id,
+                                       last_results[idx].title,
+                                       last_results[idx].author);
+            return;
+        }
+
+        /* Build a video-only queue */
+        play_queue.clear();
+        int queue_idx = 0;
+        for (int i = 0; i <= idx; i++) {
+            if (!last_results[i].is_playlist && !last_results[i].is_channel) {
+                play_queue.push_back(last_results[i]);
+                if (i < idx) queue_idx++;
+            }
+        }
+        if (play_queue.empty()) return;
+        current_queue_index = queue_idx;
+        play_index(current_queue_index);
+        return;
+    }
+
+    if (line > (int)last_results.size()) return;
 
     std::string video_id = last_results[line - 1].video_id;
     std::string title    = last_results[line - 1].title;
@@ -121,6 +161,17 @@ void repeat_cb(Fl_Widget* w, void* data) {
 }
 
 void heart_btn_cb(Fl_Widget* w, void* data) {
+    if (RadioManager::get_radio_mode()) {
+        if (RadioManager::current_radio_index >= 0) {
+            int id = RadioManager::stations[RadioManager::current_radio_index].id;
+            RadioManager::toggle_favorite(id);
+            if (heartBtn) {
+                heartBtn->active = RadioManager::is_favorite(id);
+                heartBtn->redraw();
+            }
+        }
+        return;
+    }
     if (current_queue_index < 0 || current_queue_index >= (int)play_queue.size()) return;
     std::string video_id = play_queue[current_queue_index].video_id;
     if (PlaylistManager::is_favorite(video_id)) {
@@ -323,6 +374,7 @@ void apply_language() {
     if (sidebarLibHeading)    sidebarLibHeading->copy_label(lang->your_library);
     if (sidebarLikedBtn)      sidebarLikedBtn->copy_label(lang->liked_songs);
     if (sidebarNewPlaylistBtn) sidebarNewPlaylistBtn->copy_label(lang->create_playlist);
+    if (sidebarRadioBtn)      sidebarRadioBtn->copy_label(lang->radio);
     if (sidebarPrefsBtn)      sidebarPrefsBtn->copy_label(lang->settings);
     if (langToggleBtn)        langToggleBtn->copy_label(lang->language_btn);
 
@@ -771,4 +823,146 @@ void playlist_delete_click_cb(Fl_Widget* w, void* data) {
     } else if (current_category == "CHANNEL") {
         show_styled_message(lang->cannot_delete_channel);
     }
+}
+
+/* ================================================================
+ * Radio callbacks
+ * ================================================================ */
+void radio_station_cb(Fl_Widget* w, void* data) {
+    auto* browser = (Fl_Browser*)w;
+    int line = browser->value();
+    if (line <= 0) return;
+    if (!Fl::event_clicks() && data == nullptr) return;
+
+    auto list = RadioManager::filtered();
+    if (line > (int)list.size()) return;
+
+    const auto& station = list[line - 1];
+    RadioManager::radio_mode = true;
+
+    // Find global index
+    for (int i = 0; i < (int)RadioManager::stations.size(); i++) {
+        if (RadioManager::stations[i].id == station.id) {
+            RadioManager::current_radio_index = i;
+            break;
+        }
+    }
+
+    std::cout << "[RADIO] Playing: " << station.name << " (" << station.stream_url << ")" << std::endl;
+
+    // Update UI
+    if (nowPlayingBox) {
+        std::string np = station.name;
+        if (np.size() > 32) np = np.substr(0, 29) + "...";
+        nowPlayingBox->copy_label(np.c_str());
+        nowPlayingBox->redraw();
+    }
+    if (nowPlayingArtistBox) {
+        nowPlayingArtistBox->copy_label(std::string(lang->radio_live).c_str());
+        nowPlayingArtistBox->redraw();
+    }
+    if (heartBtn) {
+        heartBtn->active = RadioManager::is_favorite(station.id);
+        heartBtn->redraw();
+    }
+
+    player->play(station.stream_url);
+    if (playBtn) playBtn->redraw();
+}
+
+void radio_country_cb(Fl_Widget* w, void* data) {
+    auto* choice = (Fl_Choice*)w;
+    int idx = choice->value();
+    if (idx <= 0) {
+        RadioManager::current_country_filter = "";
+    } else {
+        auto countries = RadioManager::all_countries();
+        if (idx - 1 < (int)countries.size())
+            RadioManager::current_country_filter = countries[idx - 1];
+    }
+    show_radio_view();
+}
+
+void radio_genre_cb(Fl_Widget* w, void* data) {
+    auto* choice = (Fl_Choice*)w;
+    int idx = choice->value();
+    if (idx <= 0) {
+        RadioManager::current_genre_filter = "";
+    } else {
+        auto genres = RadioManager::all_genres();
+        if (idx - 1 < (int)genres.size())
+            RadioManager::current_genre_filter = genres[idx - 1];
+    }
+    show_radio_view();
+}
+
+void radio_add_custom_cb(Fl_Widget* w, void* data) {
+    // Create a small dialog window for adding a custom station
+    auto* win = new Fl_Double_Window(400, 200, lang->radio_add_custom);
+    win->color(Theme::SIDEBAR);
+    if (Fl::first_window())
+        win->position(Fl::first_window()->x() + (Fl::first_window()->w() - win->w()) / 2,
+                      Fl::first_window()->y() + (Fl::first_window()->h() - win->h()) / 2);
+
+    auto* nameLabel = new Fl_Box(20, 20, 100, 25, lang->radio_custom_name);
+    nameLabel->labelcolor(Theme::TEXT_PRIMARY);
+    nameLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    auto* nameInput = new Fl_Input(130, 20, 250, 25);
+    nameInput->textcolor(Theme::TEXT_PRIMARY);
+    nameInput->color(Theme::HOVER);
+
+    auto* urlLabel = new Fl_Box(20, 55, 100, 25, lang->radio_custom_url);
+    urlLabel->labelcolor(Theme::TEXT_PRIMARY);
+    urlLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    auto* urlInput = new Fl_Input(130, 55, 250, 25);
+    urlInput->textcolor(Theme::TEXT_PRIMARY);
+    urlInput->color(Theme::HOVER);
+
+    auto* addBtn = new ModernButton(150, 110, 100, 30, lang->add_btn);
+    addBtn->color(Theme::ACCENT);
+    addBtn->labelcolor(FL_BLACK);
+    addBtn->callback([](Fl_Widget* btn, void* d) {
+        auto** inputs = (Fl_Input**)d;
+        std::string name = inputs[0]->value();
+        std::string url = inputs[1]->value();
+        if (!name.empty() && !url.empty()) {
+            RadioManager::add_custom(name, url, "Custom", "INT");
+            // Re-init to reload lists
+            RadioManager::sort_by_country();
+            show_radio_view();
+        }
+        btn->parent()->hide();
+        delete (Fl_Input**)d;
+    }, new Fl_Input*[2]{nameInput, urlInput});
+
+    win->end();
+    win->set_modal();
+    win->show();
+}
+
+void radio_search_online_cb(Fl_Widget* w, void* data) {
+    std::string query = "";
+    if (searchBar && searchBar->value()[0]) {
+        query = searchBar->value();
+    }
+    if (query.empty()) {
+        show_styled_message(lang->search_tooltip);
+        return;
+    }
+
+    auto results = RadioManager::search_online(query);
+    if (results.empty()) {
+        show_styled_message(lang->radio_no_stations);
+        return;
+    }
+
+    // Add to stations list
+    for (auto& s : results) {
+        RadioManager::stations.push_back(s);
+    }
+    RadioManager::sort_by_country();
+    RadioManager::save_customs();
+    show_radio_view();
 }

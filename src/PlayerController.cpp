@@ -8,6 +8,7 @@
 #include "ProgressSlider.h"
 #include "ModernButton.h"
 #include "PlaylistManager.h"
+#include "RadioManager.h"
 #include "UIWidgets.h"   /* CircularButton, HeartButton */
 
 /* ================================================================
@@ -17,6 +18,7 @@
 void play_index(int index) {
     if (index < 0 || index >= (int)play_queue.size()) return;
 
+    RadioManager::set_radio_mode(false);
     current_queue_index = index;
     std::string video_id = play_queue[index].video_id;
     std::string title    = play_queue[index].title;
@@ -62,6 +64,18 @@ void play_index(int index) {
 }
 
 void play_next() {
+    if (RadioManager::get_radio_mode()) {
+        RadioManager::radio_next();
+        auto& st = RadioManager::stations[RadioManager::current_radio_index];
+        if (nowPlayingBox) {
+            std::string np = st.name;
+            if (np.size() > 32) np = np.substr(0, 29) + "...";
+            nowPlayingBox->copy_label(np.c_str());
+        }
+        if (nowPlayingArtistBox) nowPlayingArtistBox->copy_label(lang->radio_live);
+        player->play(st.stream_url);
+        return;
+    }
     if (play_queue.empty()) return;
     if (is_repeat)  { play_index(current_queue_index); return; }
     if (is_shuffle) { play_index(rand() % (int)play_queue.size()); return; }
@@ -72,6 +86,18 @@ void play_next() {
 }
 
 void play_prev() {
+    if (RadioManager::get_radio_mode()) {
+        RadioManager::radio_prev();
+        auto& st = RadioManager::stations[RadioManager::current_radio_index];
+        if (nowPlayingBox) {
+            std::string np = st.name;
+            if (np.size() > 32) np = np.substr(0, 29) + "...";
+            nowPlayingBox->copy_label(np.c_str());
+        }
+        if (nowPlayingArtistBox) nowPlayingArtistBox->copy_label(lang->radio_live);
+        player->play(st.stream_url);
+        return;
+    }
     if (play_queue.empty()) return;
     int prev = current_queue_index - 1;
     if (prev < 0) prev = (int)play_queue.size() - 1;  /* wrap */
@@ -97,28 +123,57 @@ std::string format_time(double seconds) {
 void update_ui_cb(void* data) {
     if (player && progressBar) {
         int ev = player->update();          /* process mpv events */
-        if (ev == 1) { play_next(); }       /* EOF → auto-advance */
 
-        double pos = player->get_position();
-        double dur = player->get_duration();
+        if (RadioManager::get_radio_mode()) {
+            // Radio mode: show LIVE, fetch stream metadata
+            if (currentTimeBox) { currentTimeBox->copy_label(lang->radio_live); currentTimeBox->redraw(); }
+            if (totalTimeBox)   { totalTimeBox->copy_label("");                totalTimeBox->redraw();   }
+            progressBar->maximum(1);
+            progressBar->value(0);
+            progressBar->set_buffered(0);
 
-        if (dur > 0) {
-            progressBar->maximum(dur);
-            progressBar->value(pos);
-            double cache_dur = player->get_cache_duration();
-            progressBar->set_buffered(pos + cache_dur);
-
-            if (currentTimeBox) {
-                currentTimeBox->copy_label(format_time(pos).c_str());
-                currentTimeBox->redraw();
+            // Update stream metadata (icy-title) every few ticks
+            static int meta_ticks = 0;
+            meta_ticks++;
+            if (meta_ticks >= 15) {  // every ~3 seconds
+                meta_ticks = 0;
+                std::string meta = player->get_stream_metadata();
+                if (!meta.empty() && nowPlayingArtistBox) {
+                    if (meta.size() > 28) meta = meta.substr(0, 25) + "...";
+                    nowPlayingArtistBox->copy_label(meta.c_str());
+                    nowPlayingArtistBox->redraw();
+                }
             }
-            if (totalTimeBox) {
-                totalTimeBox->copy_label(format_time(dur).c_str());
-                totalTimeBox->redraw();
+
+            if (ev == 2) {  // error → try next
+                RadioManager::radio_next();
+                auto& st = RadioManager::stations[RadioManager::current_radio_index];
+                player->play(st.stream_url);
             }
         } else {
-            if (currentTimeBox) { currentTimeBox->copy_label("00:00"); currentTimeBox->redraw(); }
-            if (totalTimeBox)   { totalTimeBox->copy_label("00:00");   totalTimeBox->redraw();   }
+            if (ev == 1) { play_next(); }       /* EOF → auto-advance */
+
+            double pos = player->get_position();
+            double dur = player->get_duration();
+
+            if (dur > 0) {
+                progressBar->maximum(dur);
+                progressBar->value(pos);
+                double cache_dur = player->get_cache_duration();
+                progressBar->set_buffered(pos + cache_dur);
+
+                if (currentTimeBox) {
+                    currentTimeBox->copy_label(format_time(pos).c_str());
+                    currentTimeBox->redraw();
+                }
+                if (totalTimeBox) {
+                    totalTimeBox->copy_label(format_time(dur).c_str());
+                    totalTimeBox->redraw();
+                }
+            } else {
+                if (currentTimeBox) { currentTimeBox->copy_label("00:00"); currentTimeBox->redraw(); }
+                if (totalTimeBox)   { totalTimeBox->copy_label("00:00");   totalTimeBox->redraw();   }
+            }
         }
     }
     Fl::repeat_timeout(0.2, update_ui_cb);

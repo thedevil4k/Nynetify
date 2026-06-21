@@ -152,6 +152,21 @@ public:
         std::cout << "[PLAYER] Buffer size set to " << mb << "MB" << std::endl;
     }
 
+    std::string get_stream_metadata() {
+        char* val = nullptr;
+        if (mpv_get_property(handle, "metadata/icy-title", MPV_FORMAT_STRING, &val) >= 0 && val) {
+            std::string result(val);
+            mpv_free(val);
+            return result;
+        }
+        if (mpv_get_property(handle, "media-title", MPV_FORMAT_STRING, &val) >= 0 && val) {
+            std::string result(val);
+            mpv_free(val);
+            return result;
+        }
+        return "";
+    }
+
     double get_buffer_usage_mb() {
         int64_t bytes = 0;
         mpv_get_property(handle, "demuxer-cache-state/fw-bytes", MPV_FORMAT_INT64, &bytes);

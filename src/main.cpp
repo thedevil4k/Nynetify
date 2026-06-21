@@ -49,6 +49,7 @@
 #include "UIWidgets.h"
 #include "AppCallbacks.h"
 #include "PlayerController.h"
+#include "RadioManager.h"
 #include "ViewManager.h"
 
 /* ================================================================
@@ -117,6 +118,12 @@ ModernButton* homeCardButtons[6] = {};
 CircularButton* playBtn = nullptr;
 HeartButton* heartBtn = nullptr;
 ResultsBrowser* resultsBrowser = nullptr;
+
+Fl_Group* radioGroup = nullptr;
+ModernChoice* radioCountryFilter = nullptr;
+ModernChoice* radioGenreFilter = nullptr;
+Fl_Browser* radioBrowser = nullptr;
+ModernButton* sidebarRadioBtn = nullptr;
 
 /* ================================================================
  * main()
@@ -210,7 +217,7 @@ int main(int argc, char **argv) {
     sidebarPlaylistList->selection_color(Theme::HOVER);
     sidebarPlaylistList->callback(sidebar_playlist_cb);
 
-    sidebarNewPlaylistBtn = new ModernButton(10, 555, 180, 35, lang->create_playlist);
+    sidebarNewPlaylistBtn = new ModernButton(10, 555, 180, 28, lang->create_playlist);
     sidebarNewPlaylistBtn->callback([](Fl_Widget*, void*){
         static CreatePlaylistWindow* win = nullptr;
         if (!win) {
@@ -225,11 +232,18 @@ int main(int argc, char **argv) {
         win->show();
     });
 
-    langToggleBtn = new ModernButton(10, 595, 180, 30, lang->language_btn);
+    sidebarRadioBtn = new ModernButton(10, 588, 180, 24, lang->radio);
+    sidebarRadioBtn->color(Theme::HOVER);
+    sidebarRadioBtn->labelsize(12);
+    sidebarRadioBtn->callback([](Fl_Widget*, void*){ show_radio_view(); });
+
+    langToggleBtn = new ModernButton(10, 616, 180, 24, lang->language_btn);
     langToggleBtn->color(Theme::HOVER);
+    langToggleBtn->labelsize(12);
     langToggleBtn->callback(lang_btn_cb);
 
-    sidebarPrefsBtn = new ModernButton(10, 630, 180, 30, lang->settings);
+    sidebarPrefsBtn = new ModernButton(10, 644, 180, 24, lang->settings);
+    sidebarPrefsBtn->labelsize(12);
     sidebarPrefsBtn->callback(open_prefs_window_cb);
 
     /* ── 2. HOME VIEW PANEL ───────────────────────── */
@@ -294,7 +308,53 @@ int main(int argc, char **argv) {
 
     searchGroup->end();
 
-    /* ── 4. PLAYLIST VIEW PANEL ───────────────────── */
+    /* ── 4. RADIO VIEW PANEL ──────────────────────── */
+    radioGroup = new Fl_Group(200, 0, 800, 660);
+    auto* radioBg = new Fl_Box(200, 0, 800, 660);
+    radioBg->box(FL_FLAT_BOX);
+    radioBg->color(Theme::BACKGROUND);
+
+    auto* radioTitleBox = new Fl_Box(220, 15, 200, 25, lang->radio);
+    radioTitleBox->labelcolor(Theme::TEXT_PRIMARY);
+    radioTitleBox->labelsize(16);
+    radioTitleBox->labelfont(FL_HELVETICA_BOLD);
+    radioTitleBox->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    radioCountryFilter = new ModernChoice(220, 50, 760, 25);
+    radioCountryFilter->callback(radio_country_cb);
+
+    radioGenreFilter = new ModernChoice(220, 85, 760, 25);
+    radioGenreFilter->callback(radio_genre_cb);
+
+    radioBrowser = new Fl_Browser(220, 120, 760, 450);
+    radioBrowser->color(Theme::BACKGROUND);
+    radioBrowser->box(FL_FLAT_BOX);
+    radioBrowser->textcolor(Theme::TEXT_PRIMARY);
+    radioBrowser->callback(radio_station_cb);
+    radioBrowser->type(FL_HOLD_BROWSER);
+    radioBrowser->selection_color(Theme::HOVER);
+
+    auto* radioAddCustomBtn = new ModernButton(220, 585, 180, 30, lang->radio_add_custom);
+    radioAddCustomBtn->color(Theme::HOVER);
+    radioAddCustomBtn->labelcolor(Theme::TEXT_PRIMARY);
+    radioAddCustomBtn->callback(radio_add_custom_cb);
+
+    auto* radioSearchOnlineBtn = new ModernButton(410, 585, 180, 30, lang->radio_search_online);
+    radioSearchOnlineBtn->color(Theme::HOVER);
+    radioSearchOnlineBtn->labelcolor(Theme::TEXT_PRIMARY);
+    radioSearchOnlineBtn->callback(radio_search_online_cb);
+
+    auto* radioFavToggle = new ModernButton(600, 585, 140, 30, lang->radio_favs);
+    radioFavToggle->color(Theme::HOVER);
+    radioFavToggle->labelcolor(Theme::TEXT_PRIMARY);
+    radioFavToggle->callback([](Fl_Widget*, void*){
+        show_radio_view();
+    });
+
+    radioGroup->end();
+    radioGroup->hide();
+
+    /* ── 5. PLAYLIST VIEW PANEL ───────────────────── */
     playlistGroup = new Fl_Group(200, 0, 800, 660);
     auto* playlistBg = new Fl_Box(200, 0, 800, 660);
     playlistBg->box(FL_FLAT_BOX);
@@ -447,6 +507,7 @@ int main(int argc, char **argv) {
     Fl::add_timeout(0.5, update_status_bar_cb);
 
     load_settings();
+    RadioManager::init(user_region);
     YoutubeService::setDebugMode(settings.debugMode);
     YoutubeService::setUseInvidious(settings.searchProvider == AppSettings::SearchProvider::Invidious);
     apply_language();

@@ -23,6 +23,7 @@ add_executable(Nynetify
     src/ViewManager.cpp
     src/AppCallbacks.cpp
     src/InvidiousClient.cpp
+    src/RadioManager.cpp
 )
 
 if(WIN32)

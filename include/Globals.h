@@ -77,6 +77,7 @@ extern void* self; // HANDLE from windows.h
 extern Fl_Group* homeGroup;
 extern Fl_Group* searchGroup;
 extern Fl_Group* playlistGroup;
+extern Fl_Group* radioGroup;
 
 // Playlist / channel view widgets
 extern Fl_Hold_Browser* sidebarPlaylistList;
@@ -108,6 +109,12 @@ extern Fl_Box* homeBrowseTitle;
 extern Fl_Box* homeFeaturedTitle;
 extern Fl_Box* homeFeatDesc;
 extern ModernButton* homeCardButtons[6];
+
+// Radio view widgets
+extern ModernChoice* radioCountryFilter;
+extern ModernChoice* radioGenreFilter;
+extern Fl_Browser* radioBrowser;
+extern ModernButton* sidebarRadioBtn;
 
 // Circular & heart buttons in player bar
 extern CircularButton* playBtn;
@@ -210,5 +217,12 @@ void update_status_bar_cb(void* data);
 // Playlist management callbacks
 void playlist_play_click_cb(Fl_Widget* w, void* data);
 void playlist_delete_click_cb(Fl_Widget* w, void* data);
+
+// Radio callbacks
+void radio_station_cb(Fl_Widget* w, void* data);
+void radio_country_cb(Fl_Widget* w, void* data);
+void radio_genre_cb(Fl_Widget* w, void* data);
+void radio_add_custom_cb(Fl_Widget* w, void* data);
+void radio_search_online_cb(Fl_Widget* w, void* data);
 
 #endif // GLOBALS_H

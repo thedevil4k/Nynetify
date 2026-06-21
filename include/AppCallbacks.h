@@ -72,6 +72,13 @@ void refresh_current_view();
 void playlist_play_click_cb(Fl_Widget* w, void* data);
 void playlist_delete_click_cb(Fl_Widget* w, void* data);
 
+/* ── Radio ────────────────────────────────────────── */
+void radio_station_cb(Fl_Widget* w, void* data);
+void radio_country_cb(Fl_Widget* w, void* data);
+void radio_genre_cb(Fl_Widget* w, void* data);
+void radio_add_custom_cb(Fl_Widget* w, void* data);
+void radio_search_online_cb(Fl_Widget* w, void* data);
+
 /* ── Greeting (time-based) ───────────────────────── */
 std::string get_greeting();
 

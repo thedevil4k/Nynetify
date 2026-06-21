@@ -105,6 +105,18 @@ struct Lang {
     // Context menu
     const char* delete_from_playlist;
 
+    // Radio
+    const char* radio;
+    const char* radio_all_countries;
+    const char* radio_add_custom;
+    const char* radio_search_online;
+    const char* radio_favs;
+    const char* radio_no_stations;
+    const char* radio_live;
+    const char* radio_station_url;
+    const char* radio_custom_name;
+    const char* radio_custom_url;
+
     // Status bar / window title
     const char* status_prefix;
     const char* window_title;
@@ -297,6 +309,28 @@ inline Lang LANG_ES = {
     "Examinar",
     // Context menu
     "Eliminar de la lista",
+    // Radio
+    "   Radio",
+    "All Countries",
+    "Add Custom Station...",
+    "Search Online...",
+    "Favorites",
+    "No stations found",
+    "LIVE",
+    "Station URL:",
+    "Station Name:",
+    "Stream URL:",
+    // Radio
+    "   Radio",
+    "Todos los paises",
+    "Anadir emisora personalizada...",
+    "Buscar online...",
+    "Favoritas",
+    "No se encontraron emisoras",
+    "EN VIVO",
+    "URL de la emisora:",
+    "Nombre de la emisora:",
+    "URL del stream:",
     // Status / title
     "Nynetify v1.0",
     "Nynetify"

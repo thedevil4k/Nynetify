@@ -24,6 +24,7 @@ void show_home_view();
 void show_search_view();
 void show_playlist_view(const std::string& playlist_name);
 void show_favorites_view();
+void show_radio_view();
 void show_youtube_playlist_view(const std::string& playlist_id,
                                 const std::string& playlist_name,
                                 const std::string& uploader);

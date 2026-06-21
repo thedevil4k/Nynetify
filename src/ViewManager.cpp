@@ -18,6 +18,7 @@
 #include "PlayerEngine.h"
 #include "ProgressSlider.h"
 #include "PlaylistManager.h"
+#include "RadioManager.h"
 #include "YoutubeService.h"
 #include "AppSettings.h"    /* settings */
 #include "PlayerController.h"  /* play_index etc. */
@@ -31,6 +32,7 @@ void show_home_view() {
     homeGroup->show();
     searchGroup->hide();
     playlistGroup->hide();
+    if (radioGroup) radioGroup->hide();
     if (resultsBrowser) resultsBrowser->hide();
     if (sidebarPlaylistList) sidebarPlaylistList->value(0);
 }
@@ -39,6 +41,7 @@ void show_search_view() {
     homeGroup->hide();
     searchGroup->show();
     playlistGroup->hide();
+    if (radioGroup) radioGroup->hide();
     if (resultsBrowser) {
         resultsBrowser->resize(220, 70, 760, 570);
         resultsBrowser->show();
@@ -50,6 +53,7 @@ void show_playlist_view(const std::string& playlist_name) {
     homeGroup->hide();
     searchGroup->hide();
     playlistGroup->show();
+    if (radioGroup) radioGroup->hide();
     if (resultsBrowser) {
         resultsBrowser->resize(220, 220, 760, 420);
         resultsBrowser->show();
@@ -81,6 +85,7 @@ void show_favorites_view() {
     homeGroup->hide();
     searchGroup->hide();
     playlistGroup->show();
+    if (radioGroup) radioGroup->hide();
     if (resultsBrowser) {
         resultsBrowser->resize(220, 220, 760, 420);
         resultsBrowser->show();
@@ -110,6 +115,53 @@ void show_favorites_view() {
     resultsBrowser->redraw();
 }
 
+/* ── Radio view ──────────────────────────────────── */
+void show_radio_view() {
+    homeGroup->hide();
+    searchGroup->hide();
+    playlistGroup->hide();
+    if (resultsBrowser) resultsBrowser->hide();
+    radioGroup->show();
+
+    // Populate country filter
+    if (radioCountryFilter) {
+        radioCountryFilter->clear();
+        radioCountryFilter->add(lang->radio_all_countries);
+        auto countries = RadioManager::all_countries();
+        for (const auto& c : countries) radioCountryFilter->add(c.c_str());
+        radioCountryFilter->value(0);
+    }
+
+    // Populate genre filter
+    if (radioGenreFilter) {
+        radioGenreFilter->clear();
+        radioGenreFilter->add(lang->radio_all_countries);
+        auto genres = RadioManager::all_genres();
+        for (const auto& g : genres) radioGenreFilter->add(g.c_str());
+        radioGenreFilter->value(0);
+    }
+
+    // Reset filters
+    RadioManager::current_country_filter = "";
+    RadioManager::current_genre_filter = "";
+
+    // Populate station browser
+    if (radioBrowser) {
+        radioBrowser->clear();
+        auto list = RadioManager::filtered();
+        if (list.empty()) {
+            radioBrowser->add(lang->radio_no_stations);
+        } else {
+            for (const auto& s : list) {
+                bool fav = RadioManager::is_favorite(s.id);
+                std::string star = fav ? "@C7\xe2\x98\x85 " : "@C255\xe2\x98\x86 ";
+                radioBrowser->add((star + s.name + "  (" + s.country_code + ")  [" + s.genre + "]").c_str());
+            }
+        }
+        radioBrowser->redraw();
+    }
+}
+
 /* ── YouTube playlist view ───────────────────────── */
 void show_youtube_playlist_view(const std::string& playlist_id,
                                 const std::string& playlist_name,
@@ -118,6 +170,7 @@ void show_youtube_playlist_view(const std::string& playlist_id,
     homeGroup->hide();
     searchGroup->hide();
     playlistGroup->show();
+    if (radioGroup) radioGroup->hide();
 
     resultsBrowser->resize(220, 220, 760, 420);
     resultsBrowser->show();
@@ -169,13 +222,18 @@ void channel_content_completed_cb(void* data) {
         std::filesystem::remove(task->avatar_path);
     }
 
+    /* Reorder last_results to match display order (playlists first, then videos) */
+    last_results.clear();
+    for (const auto& r : task->results) if (r.is_playlist) last_results.push_back(r);
+    for (const auto& r : task->results) if (!r.is_playlist) last_results.push_back(r);
+
     /* Populate the browser with playlists & videos */
     resultsBrowser->clear();
-    if (task->results.empty()) {
+    if (last_results.empty()) {
         resultsBrowser->add(lang->no_channel_content);
     } else {
         bool has_playlists = false;
-        for (const auto& res : task->results) {
+        for (const auto& res : last_results) {
             if (!res.is_playlist) continue;
             if (!has_playlists) {
                 resultsBrowser->add((std::string("@C7") + lang->channel_playlists).c_str());
@@ -184,7 +242,7 @@ void channel_content_completed_cb(void* data) {
             resultsBrowser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
         }
         bool has_videos = false;
-        for (const auto& res : task->results) {
+        for (const auto& res : last_results) {
             if (res.is_playlist) continue;
             if (!has_videos) {
                 if (has_playlists) resultsBrowser->add("");
@@ -206,6 +264,7 @@ void show_channel_view(const std::string& channel_id,
     homeGroup->hide();
     searchGroup->hide();
     playlistGroup->show();
+    if (radioGroup) radioGroup->hide();
 
     resultsBrowser->resize(220, 220, 760, 420);
     resultsBrowser->show();
@@ -294,6 +353,7 @@ void region_detected_cb(void* data) {
     if (region->length() == 2) {
         user_region = *region;
         std::cout << "[UI] Region detected: " << user_region << std::endl;
+        RadioManager::init(user_region);
     }
     delete region;
 }
