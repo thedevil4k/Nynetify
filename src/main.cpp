@@ -122,9 +122,12 @@ ResultsBrowser* resultsBrowser = nullptr;
 
 Fl_Group* radioGroup = nullptr;
 ModernChoice* radioCountryFilter = nullptr;
-ModernChoice* radioGenreFilter = nullptr;
 Fl_Browser* radioBrowser = nullptr;
 ModernButton* sidebarRadioBtn = nullptr;
+
+ModernButton* ytToggleBtn = nullptr;
+ModernButton* twitchToggleBtn = nullptr;
+int searchPlatform = 0; // 0 = YouTube, 1 = Twitch
 
 /* ================================================================
  * main()
@@ -293,13 +296,33 @@ int main(int argc, char **argv) {
     searchBg->box(FL_FLAT_BOX);
     searchBg->color(Theme::BACKGROUND);
 
-    searchBar = new Fl_Input(220, 20, 420, 35);
+    /* Platform toggle buttons */
+    ytToggleBtn = new ModernButton(220, 20, 42, 28, "YT");
+    ytToggleBtn->labelsize(11);
+    ytToggleBtn->labelcolor(Theme::TEXT_PRIMARY);
+    ytToggleBtn->color(Theme::ACCENT);
+    ytToggleBtn->callback(yt_toggle_cb);
+
+    twitchToggleBtn = new ModernButton(266, 20, 42, 28, "TW");
+    twitchToggleBtn->labelsize(11);
+    twitchToggleBtn->labelcolor(Theme::TEXT_PRIMARY);
+    twitchToggleBtn->color(Theme::HOVER);
+    twitchToggleBtn->callback(twitch_toggle_cb);
+
+    /* Restore persisted platform choice */
+    searchPlatform = settings.searchPlatform;
+    if (searchPlatform == 1) {
+        ytToggleBtn->color(Theme::HOVER);
+        twitchToggleBtn->color(Theme::ACCENT);
+    }
+
+    searchBar = new Fl_Input(318, 20, 322, 35);
     searchBar->textcolor(Theme::TEXT_PRIMARY);
     searchBar->color(Theme::HOVER);
     searchBar->box(FL_RFLAT_BOX);
     searchBar->tooltip(lang->search_tooltip);
 
-    searchFilter = new ModernChoice(655, 20, 120, 35);
+    searchFilter = new ModernChoice(650, 20, 120, 35);
     searchFilter->add(lang->everything);
     searchFilter->add(lang->songs_filter);
     searchFilter->add(lang->playlists_filter);
@@ -324,10 +347,7 @@ int main(int argc, char **argv) {
     radioCountryFilter = new ModernChoice(220, 50, 760, 25);
     radioCountryFilter->callback(radio_country_cb);
 
-    radioGenreFilter = new ModernChoice(220, 85, 760, 25);
-    radioGenreFilter->callback(radio_genre_cb);
-
-    radioBrowser = new Fl_Browser(220, 120, 760, 450);
+    radioBrowser = new Fl_Browser(220, 85, 760, 485);
     radioBrowser->color(Theme::BACKGROUND);
     radioBrowser->box(FL_FLAT_BOX);
     radioBrowser->textcolor(Theme::TEXT_PRIMARY);

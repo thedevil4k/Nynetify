@@ -36,6 +36,8 @@ void heart_btn_cb(Fl_Widget* w, void* data);
 void search_cb(Fl_Widget* w, void* data);
 void progressive_fill_cb(void* data);
 void load_more_search_results();
+void yt_toggle_cb(Fl_Widget* w, void* data);
+void twitch_toggle_cb(Fl_Widget* w, void* data);
 
 /* ── Category cards (Home view) ──────────────────── */
 void category_card_cb(Fl_Widget* w, void* data);
@@ -75,11 +77,7 @@ void playlist_delete_click_cb(Fl_Widget* w, void* data);
 /* ── Radio ────────────────────────────────────────── */
 void radio_station_cb(Fl_Widget* w, void* data);
 void radio_country_cb(Fl_Widget* w, void* data);
-void radio_genre_cb(Fl_Widget* w, void* data);
 void radio_add_custom_cb(Fl_Widget* w, void* data);
 void radio_search_online_cb(Fl_Widget* w, void* data);
-
-/* ── Greeting (time-based) ───────────────────────── */
-std::string get_greeting();
 
 #endif // APPCALLBACKS_H

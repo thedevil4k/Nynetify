@@ -11,6 +11,8 @@ struct SearchResult {
     std::string duration;
     bool is_playlist = false;
     bool is_channel = false;
+    bool is_live = false;
+    bool is_twitch = false;
 };
 
 #endif

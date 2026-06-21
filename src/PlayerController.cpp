@@ -51,10 +51,20 @@ void play_index(int index) {
     }
 
     /* Load cover art (async — see ViewManager) */
-    update_cover_art(video_id);
+    if (!play_queue[index].is_twitch)
+        update_cover_art(video_id);
 
     /* Start playback via mpv + yt-dlp */
-    std::string stream_url = YoutubeService::get_audio_url(video_id);
+    std::string stream_url;
+    if (play_queue[index].is_twitch) {
+        /* Construct Twitch URL — mpv + yt-dlp handles HLS extraction */
+        if (play_queue[index].is_live)
+            stream_url = "https://www.twitch.tv/" + video_id;
+        else
+            stream_url = "https://www.twitch.tv/videos/" + video_id;
+    } else {
+        stream_url = YoutubeService::get_audio_url(video_id);
+    }
     if (!stream_url.empty()) {
         player->play(stream_url);
         if (playBtn) playBtn->redraw();

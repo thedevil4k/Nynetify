@@ -13,7 +13,6 @@ public:
     static inline std::unordered_set<int> fav_cache;
     static inline std::string user_country_code = "ES";
     static inline std::string current_country_filter = "";
-    static inline std::string current_genre_filter = "";
     static inline bool radio_mode = false;
     static inline int current_radio_index = -1;
 
@@ -41,8 +40,6 @@ public:
         for (const auto& s : stations) {
             if (!current_country_filter.empty() && s.country_code != current_country_filter)
                 continue;
-            if (!current_genre_filter.empty() && s.genre != current_genre_filter)
-                continue;
             result.push_back(s);
         }
         return result;
@@ -64,15 +61,6 @@ public:
                 codes.push_back(s.country_code);
         }
         return codes;
-    }
-
-    static std::vector<std::string> all_genres() {
-        std::vector<std::string> genres;
-        for (const auto& s : stations) {
-            if (std::find(genres.begin(), genres.end(), s.genre) == genres.end())
-                genres.push_back(s.genre);
-        }
-        return genres;
     }
 
     static bool get_radio_mode() { return radio_mode; }

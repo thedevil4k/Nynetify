@@ -129,21 +129,18 @@ void show_radio_view() {
         radioCountryFilter->add(lang->radio_all_countries);
         auto countries = RadioManager::all_countries();
         for (const auto& c : countries) radioCountryFilter->add(c.c_str());
-        radioCountryFilter->value(0);
+        // Preserve current selection
+        if (RadioManager::current_country_filter.empty()) {
+            radioCountryFilter->value(0);
+        } else {
+            for (int i = 0; i < (int)countries.size(); i++) {
+                if (countries[i] == RadioManager::current_country_filter) {
+                    radioCountryFilter->value(i + 1);
+                    break;
+                }
+            }
+        }
     }
-
-    // Populate genre filter
-    if (radioGenreFilter) {
-        radioGenreFilter->clear();
-        radioGenreFilter->add(lang->radio_all_countries);
-        auto genres = RadioManager::all_genres();
-        for (const auto& g : genres) radioGenreFilter->add(g.c_str());
-        radioGenreFilter->value(0);
-    }
-
-    // Reset filters
-    RadioManager::current_country_filter = "";
-    RadioManager::current_genre_filter = "";
 
     // Populate station browser
     if (radioBrowser) {

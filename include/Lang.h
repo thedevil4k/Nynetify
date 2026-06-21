@@ -23,6 +23,10 @@ struct Lang {
     const char* songs_filter;
     const char* playlists_filter;
     const char* channels_filter;
+    const char* yt_label;
+    const char* twitch_label;
+    const char* twitch_live;
+    const char* twitch_category;
 
     // Playlist view
     const char* playlist_name_placeholder;
@@ -144,6 +148,10 @@ inline Lang LANG_EN = {
     "Songs",
     "Playlists",
     "Channels",
+    "YouTube",
+    "Twitch",
+    "LIVE",
+    "Category",
     // Playlist view
     "Playlist Name",
     "A custom playlist created in Nynetify.",
@@ -251,6 +259,10 @@ inline Lang LANG_ES = {
     "Canciones",
     "Listas",
     "Canales",
+    "YouTube",
+    "Twitch",
+    "EN VIVO",
+    "Categoria",
     // Playlist view
     "Nombre de lista",
     "Una lista creada en Nynetify.",

@@ -26,9 +26,12 @@ struct AppSettings {
     bool debugMode = false;
     std::string downloadPath;
     
-    // Search provider preference
+    // Search provider preference (YouTube backend)
     enum class SearchProvider { Invidious, YTDLP };
     SearchProvider searchProvider = SearchProvider::Invidious;
+
+    // Search platform preference (persisted across sessions)
+    int searchPlatform = 0; // 0 = YouTube, 1 = Twitch
 };
 
 /* Persistence helpers */

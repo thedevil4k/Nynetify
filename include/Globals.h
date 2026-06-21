@@ -66,6 +66,9 @@ extern Fl_Box* currentTimeBox;
 extern Fl_Box* totalTimeBox;
 extern Fl_Input* searchBar;
 extern ModernChoice* searchFilter;
+extern ModernButton* ytToggleBtn;
+extern ModernButton* twitchToggleBtn;
+extern int searchPlatform; // 0 = YouTube, 1 = Twitch
 extern Fl_Box* statusBar;
 extern Fl_Double_Window* eqWin;
 extern Fl_Double_Window* prefWin;
@@ -112,7 +115,6 @@ extern ModernButton* homeCardButtons[6];
 
 // Radio view widgets
 extern ModernChoice* radioCountryFilter;
-extern ModernChoice* radioGenreFilter;
 extern Fl_Browser* radioBrowser;
 extern ModernButton* sidebarRadioBtn;
 
@@ -146,6 +148,8 @@ void search_cb(Fl_Widget* w, void* data);
 void progressive_fill_cb(void* data);
 void load_more_search_results();
 void category_card_cb(Fl_Widget* w, void* data);
+void yt_toggle_cb(Fl_Widget* w, void* data);
+void twitch_toggle_cb(Fl_Widget* w, void* data);
 
 // View switching
 void show_home_view();
@@ -184,7 +188,6 @@ void scroll_batch_cb(Fl_Widget* w, void* data);
 
 // Utilities
 void refresh_current_view();
-std::string get_greeting();
 std::string format_time(double seconds);
 void update_cover_art(const std::string& video_id);
 void detect_region();
@@ -221,7 +224,6 @@ void playlist_delete_click_cb(Fl_Widget* w, void* data);
 // Radio callbacks
 void radio_station_cb(Fl_Widget* w, void* data);
 void radio_country_cb(Fl_Widget* w, void* data);
-void radio_genre_cb(Fl_Widget* w, void* data);
 void radio_add_custom_cb(Fl_Widget* w, void* data);
 void radio_search_online_cb(Fl_Widget* w, void* data);
 

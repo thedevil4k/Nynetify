@@ -28,6 +28,7 @@
 #include "RadioManager.h"
 #include "RadioStation.h"
 #include "YoutubeService.h"
+#include "TwitchClient.h"
 
 /* ================================================================
  * Playback callbacks
@@ -95,7 +96,8 @@ void play_selected_cb(Fl_Widget* w, void* data) {
         show_youtube_playlist_view(video_id, title, author);
         return;
     }
-    if (last_results[line - 1].is_channel) {
+    /* Twitch channels play directly — don't navigate to channel view */
+    if (last_results[line - 1].is_channel && !last_results[line - 1].is_twitch) {
         show_channel_view(video_id, title);
         return;
     }
@@ -191,6 +193,33 @@ void heart_btn_cb(Fl_Widget* w, void* data) {
  * Search callbacks
  * ================================================================ */
 
+/* ── Platform toggle callbacks ──────────────────── */
+void yt_toggle_cb(Fl_Widget* w, void* data) {
+    searchPlatform = 0;
+    settings.searchPlatform = 0;
+    save_settings();
+    if (ytToggleBtn)  ytToggleBtn->color(Theme::ACCENT);
+    if (twitchToggleBtn) twitchToggleBtn->color(Theme::HOVER);
+    if (ytToggleBtn)  ytToggleBtn->redraw();
+    if (twitchToggleBtn) twitchToggleBtn->redraw();
+    /* Re-run search if there's a query */
+    if (searchBar && searchBar->value()[0] != '\0')
+        search_cb(searchBar, resultsBrowser);
+}
+
+void twitch_toggle_cb(Fl_Widget* w, void* data) {
+    searchPlatform = 1;
+    settings.searchPlatform = 1;
+    save_settings();
+    if (ytToggleBtn)  ytToggleBtn->color(Theme::HOVER);
+    if (twitchToggleBtn) twitchToggleBtn->color(Theme::ACCENT);
+    if (ytToggleBtn)  ytToggleBtn->redraw();
+    if (twitchToggleBtn) twitchToggleBtn->redraw();
+    /* Re-run search if there's a query */
+    if (searchBar && searchBar->value()[0] != '\0')
+        search_cb(searchBar, resultsBrowser);
+}
+
 void search_cb(Fl_Widget* w, void* data) {
     current_category = "SEARCH";
     current_playlist = "";
@@ -206,7 +235,11 @@ void search_cb(Fl_Widget* w, void* data) {
 
     std::cout << "[UI] Searching for: " << query << "..." << std::endl;
     try {
-        last_results = YoutubeService::search(query, user_region, last_search_filter, settings.initialFetchSize);
+        if (searchPlatform == 1) {
+            last_results = TwitchClient::search(query, settings.initialFetchSize);
+        } else {
+            last_results = YoutubeService::search(query, user_region, last_search_filter, settings.initialFetchSize);
+        }
         std::cout << "[UI] Found " << last_results.size() << " results." << std::endl;
 
         total_loaded_results = 0;
@@ -284,7 +317,12 @@ void load_more_search_results() {
 
     int prev_total = (int)last_results.size();
     int new_limit  = prev_total + settings.initialFetchSize;
-    auto fresh = YoutubeService::search(last_search_query, user_region, last_search_filter, new_limit);
+    std::vector<SearchResult> fresh;
+    if (searchPlatform == 1) {
+        fresh = TwitchClient::search(last_search_query, new_limit);
+    } else {
+        fresh = YoutubeService::search(last_search_query, user_region, last_search_filter, new_limit);
+    }
 
     for (int i = prev_total; i < (int)fresh.size(); i++)
         last_results.push_back(fresh[i]);
@@ -881,19 +919,6 @@ void radio_country_cb(Fl_Widget* w, void* data) {
         auto countries = RadioManager::all_countries();
         if (idx - 1 < (int)countries.size())
             RadioManager::current_country_filter = countries[idx - 1];
-    }
-    show_radio_view();
-}
-
-void radio_genre_cb(Fl_Widget* w, void* data) {
-    auto* choice = (Fl_Choice*)w;
-    int idx = choice->value();
-    if (idx <= 0) {
-        RadioManager::current_genre_filter = "";
-    } else {
-        auto genres = RadioManager::all_genres();
-        if (idx - 1 < (int)genres.size())
-            RadioManager::current_genre_filter = genres[idx - 1];
     }
     show_radio_view();
 }
