@@ -213,6 +213,17 @@ inline Lang LANG_EN = {
     "Browse",
     // Context menu
     "Delete from Playlist",
+    // Radio
+    "   Radio",
+    "All Countries",
+    "Add Custom Station...",
+    "Search Online...",
+    "Favorites",
+    "No stations found",
+    "LIVE",
+    "Station URL:",
+    "Station Name:",
+    "Stream URL:",
     // Status / title
     "Nynetify v1.0",
     "Nynetify"
@@ -309,17 +320,6 @@ inline Lang LANG_ES = {
     "Examinar",
     // Context menu
     "Eliminar de la lista",
-    // Radio
-    "   Radio",
-    "All Countries",
-    "Add Custom Station...",
-    "Search Online...",
-    "Favorites",
-    "No stations found",
-    "LIVE",
-    "Station URL:",
-    "Station Name:",
-    "Stream URL:",
     // Radio
     "   Radio",
     "Todos los paises",
