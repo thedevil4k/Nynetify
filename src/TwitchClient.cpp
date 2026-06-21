@@ -2,20 +2,19 @@
 #include "nlohmann/json.hpp"
 #include <curl/curl.h>
 #include <iostream>
-#include <sstream>
 
 /*
- * TwitchClient.cpp — Helix API search implementation.
+ * TwitchClient.cpp — Twitch GQL search implementation.
  *
- * Flow:
- *   1. Obtain anonymous token via POST /oauth2/token (cached ~60 days)
- *   2. GET /helix/search/channels?query=...&first=N
- *   3. GET /helix/search/categories?query=...&first=N  (to show game/category)
- *   4. Combine results into SearchResult vector
+ * Uses the Twitch website's public Client-ID to query
+ * gql.twitch.tv/gql directly (no OAuth, no registration).
  *
- * For playback, construct https://www.twitch.tv/{login} — mpv + yt-dlp
- * handles the rest natively (HLS extraction).
+ * For playback, construct https://www.twitch.tv/{login} —
+ * mpv + yt-dlp handles HLS extraction natively.
  */
+
+static const char* TWITCH_GQL_URL     = "https://gql.twitch.tv/gql";
+static const char* TWITCH_GQL_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 
 /* ── curl write callback ─────────────────────────────── */
 size_t TwitchClient::write_cb(void* contents, size_t size, size_t nmemb, std::string* s) {
@@ -23,26 +22,25 @@ size_t TwitchClient::write_cb(void* contents, size_t size, size_t nmemb, std::st
     return size * nmemb;
 }
 
-/* ── HTTP GET with Bearer + Client-ID ────────────────── */
-std::string TwitchClient::http_get(const std::string& url,
-                                    const std::string& client_id,
-                                    const std::string& bearer) {
+/* ── POST raw GraphQL to gql.twitch.tv ───────────────── */
+std::string TwitchClient::gql_post(const std::string& query_graphql) {
     std::string response;
     CURL* curl = curl_easy_init();
     if (!curl) return response;
 
     struct curl_slist* headers = nullptr;
-    std::string auth_header = "Authorization: Bearer " + bearer;
-    std::string cid_header  = "Client-Id: " + client_id;
-    headers = curl_slist_append(headers, auth_header.c_str());
+    std::string cid_header = std::string("Client-ID: ") + TWITCH_GQL_CLIENT_ID;
     headers = curl_slist_append(headers, cid_header.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
 
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_URL, TWITCH_GQL_URL);
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query_graphql.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)query_graphql.size());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
@@ -51,9 +49,9 @@ std::string TwitchClient::http_get(const std::string& url,
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
     if (res != CURLE_OK) {
-        std::cerr << "[TWITCH] HTTP GET failed: " << curl_easy_strerror(res) << std::endl;
+        std::cerr << "[TWITCH] GQL POST failed: " << curl_easy_strerror(res) << std::endl;
     } else if (http_code != 200) {
-        std::cerr << "[TWITCH] HTTP " << http_code << " for " << url << std::endl;
+        std::cerr << "[TWITCH] GQL HTTP " << http_code << std::endl;
         if (debug) std::cerr << "[TWITCH] Response: " << response.substr(0, 500) << std::endl;
     }
 
@@ -62,111 +60,78 @@ std::string TwitchClient::http_get(const std::string& url,
     return response;
 }
 
-/* ── Anonymous app access token ──────────────────────── */
-std::string TwitchClient::get_anonymous_token() {
-    time_t now = time(nullptr);
-    if (!cached_token.empty() && now < token_expiry)
-        return cached_token;
-
-    /* The Twitch website's public client ID (visible in twitch.tv source).
-     * Used by many open-source Twitch clients for anonymous access. */
-    cached_client_id = "kimne78kx3ncx6rggo4klvchwqklzqbw";
-
-    std::string url = "https://id.twitch.tv/oauth2/token"
-                      "?client_id=" + cached_client_id +
-                      "&grant_type=client_credentials";
-
-    std::string response;
-    CURL* curl = curl_easy_init();
-    if (!curl) return cached_token;
-
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-
-    CURLcode res = curl_easy_perform(curl);
-    long http_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    curl_easy_cleanup(curl);
-
-    if (res != CURLE_OK || http_code != 200) {
-        std::cerr << "[TWITCH] Failed to get anonymous token (HTTP " << http_code << ")" << std::endl;
-        return cached_token;
-    }
-
-    try {
-        auto j = nlohmann::json::parse(response);
-        cached_token = j["access_token"].get<std::string>();
-        int expires_in = j.value("expires_in", 0);
-        token_expiry = now + expires_in - 60; // refresh 60s early
-        std::cout << "[TWITCH] Got anonymous token, expires in " << expires_in << "s" << std::endl;
-    } catch (const std::exception& e) {
-        std::cerr << "[TWITCH] Token parse error: " << e.what() << std::endl;
-    }
-
-    return cached_token;
-}
-
-/* ── Search: channels + categories → SearchResult vector ── */
+/* ── Search: GQL query → SearchResult vector ─────────── */
 std::vector<SearchResult> TwitchClient::search(const std::string& query, int max_results) {
     std::vector<SearchResult> results;
 
-    std::string token = get_anonymous_token();
-    if (token.empty() || cached_client_id.empty()) {
-        std::cerr << "[TWITCH] No token available, cannot search" << std::endl;
-        return results;
-    }
+    /* Escape the query for JSON embedding */
+    char* escaped = curl_easy_escape(nullptr, query.c_str(), 0);
+    std::string q_escaped(escaped ? escaped : query);
+    if (escaped) curl_free(escaped);
+
+    /* Build the GraphQL request — raw query, no persisted hash needed */
+    std::string gql_body = R"([
+  {
+    "operationName": "SearchResultsPage_SearchResults",
+    "variables": {"searchTerm": ")" + q_escaped + R"("},
+    "query": "query SearchResultsPage_SearchResults($searchTerm: String!) { searchFor(userQuery: $searchTerm, platform: \"all\") { channels { items { ... on User { id displayName login description followers { totalCount } profileImageURL(width: 50) stream { id viewersCount title game { displayName } } } } } } }"
+  }
+])";
 
     std::cout << "[TWITCH] Searching: \"" << query << "\"" << std::endl;
 
-    /* ── 1. Search channels ───────────────────────────── */
-    std::string ch_url = "https://api.twitch.tv/helix/search/channels?query="
-                         + std::string(curl_easy_escape(nullptr, query.c_str(), 0))
-                         + "&first=" + std::to_string(max_results);
-    std::string ch_resp = http_get(ch_url, cached_client_id, token);
-
-    std::vector<nlohmann::json> channel_data;
-    try {
-        auto j = nlohmann::json::parse(ch_resp);
-        if (j.contains("data") && j["data"].is_array()) {
-            for (auto& ch : j["data"]) {
-                channel_data.push_back(ch);
-
-                SearchResult sr;
-                sr.is_channel  = true;
-                sr.is_twitch   = true;
-                sr.is_live     = ch.value("is_live", false);
-                sr.video_id    = ch.value("broadcaster_login", "");  // channel login for URL
-                sr.channel_id  = ch.value("id", "");
-                sr.title       = ch.value("display_name", "");
-                sr.author      = ch.value("broadcaster_login", "");
-
-                /* Build a descriptive title: "DisplayName - game if live" */
-                std::string display = ch.value("display_name", "");
-                std::string game    = ch.value("game_name", "");
-                bool live           = ch.value("is_live", false);
-                int  viewers        = ch.value("view_count", 0);
-
-                if (live && !game.empty())
-                    sr.title = display + " - " + game;
-                else if (!game.empty())
-                    sr.title = display + " - " + game;
-                else
-                    sr.title = display;
-
-                results.push_back(sr);
-
-                if ((int)results.size() >= max_results) break;
-            }
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "[TWITCH] Channel parse error: " << e.what() << std::endl;
+    std::string resp = gql_post(gql_body);
+    if (resp.empty()) {
+        std::cerr << "[TWITCH] Empty response from GQL" << std::endl;
+        return results;
     }
 
-    std::cout << "[TWITCH] Found " << results.size() << " channel results" << std::endl;
+    try {
+        auto j = nlohmann::json::parse(resp);
+        /* GQL wraps in array; unwrap */
+        if (j.is_array() && !j.empty()) j = j[0];
+
+        auto& data = j["data"]["searchFor"]["channels"]["items"];
+        if (!data.is_array()) {
+            std::cerr << "[TWITCH] Unexpected response structure" << std::endl;
+            return results;
+        }
+
+        for (auto& item : data) {
+            SearchResult sr;
+            sr.is_twitch   = true;
+            sr.is_channel  = true;
+            sr.channel_id  = item.value("id", "");
+            sr.video_id    = item.value("login", "");  // channel login for URL
+            sr.title       = item.value("displayName", "");
+            sr.author      = item.value("displayName", "");
+
+            /* If live, show game/category in title */
+            if (!item["stream"].is_null()) {
+                sr.is_live = true;
+                auto& stream = item["stream"];
+                std::string game;
+                if (stream.contains("game") && !stream["game"].is_null())
+                    game = stream["game"].value("displayName", "");
+                std::string stream_title = stream.value("title", "");
+                int viewers = stream.value("viewersCount", 0);
+
+                if (!game.empty())
+                    sr.title = sr.author + " - " + game;
+                if (viewers > 0)
+                    sr.title += " [" + std::to_string(viewers) + " viewers]";
+                if (!stream_title.empty())
+                    sr.title += " | " + stream_title;
+            }
+
+            results.push_back(sr);
+            if ((int)results.size() >= max_results) break;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[TWITCH] Parse error: " << e.what() << std::endl;
+        if (debug) std::cerr << "[TWITCH] Raw: " << resp.substr(0, 1000) << std::endl;
+    }
+
+    std::cout << "[TWITCH] Found " << results.size() << " results" << std::endl;
     return results;
 }
