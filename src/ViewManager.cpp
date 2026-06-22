@@ -116,6 +116,27 @@ void show_favorites_view() {
 }
 
 /* ── Radio view ──────────────────────────────────── */
+void refresh_radio_browser() {
+    if (!radioBrowser) return;
+    radioBrowser->clear();
+    auto list = RadioManager::filtered();
+    if (list.empty()) {
+        radioBrowser->add(lang->radio_no_stations);
+    } else {
+        for (const auto& s : list) {
+            std::string icon;
+            if (RadioManager::is_failed(s.id))
+                icon = "@C1\xe2\x9c\x97 ";
+            else if (RadioManager::is_favorite(s.id))
+                icon = "@C7\xe2\x98\x85 ";
+            else
+                icon = "@C255\xe2\x98\x86 ";
+            radioBrowser->add((icon + s.name + "  (" + s.country_code + ")  [" + s.genre + "]").c_str());
+        }
+    }
+    radioBrowser->redraw();
+}
+
 void show_radio_view() {
     homeGroup->hide();
     searchGroup->hide();
@@ -143,20 +164,7 @@ void show_radio_view() {
     }
 
     // Populate station browser
-    if (radioBrowser) {
-        radioBrowser->clear();
-        auto list = RadioManager::filtered();
-        if (list.empty()) {
-            radioBrowser->add(lang->radio_no_stations);
-        } else {
-            for (const auto& s : list) {
-                bool fav = RadioManager::is_favorite(s.id);
-                std::string star = fav ? "@C7\xe2\x98\x85 " : "@C255\xe2\x98\x86 ";
-                radioBrowser->add((star + s.name + "  (" + s.country_code + ")  [" + s.genre + "]").c_str());
-            }
-        }
-        radioBrowser->redraw();
-    }
+    refresh_radio_browser();
 }
 
 /* ── YouTube playlist view ───────────────────────── */

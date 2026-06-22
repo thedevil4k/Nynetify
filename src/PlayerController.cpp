@@ -156,8 +156,21 @@ void update_ui_cb(void* data) {
             }
 
             if (ev == 2) {  // error → try next
+                int failed_id = RadioManager::stations[RadioManager::current_radio_index].id;
+                RadioManager::mark_failed(failed_id);
+                refresh_radio_browser();
                 RadioManager::radio_next();
                 auto& st = RadioManager::stations[RadioManager::current_radio_index];
+                if (nowPlayingBox) {
+                    std::string np = st.name;
+                    if (np.size() > 32) np = np.substr(0, 29) + "...";
+                    nowPlayingBox->copy_label(np.c_str());
+                    nowPlayingBox->redraw();
+                }
+                if (nowPlayingArtistBox) {
+                    nowPlayingArtistBox->copy_label(lang->radio_live);
+                    nowPlayingArtistBox->redraw();
+                }
                 player->play(st.stream_url);
             }
         } else {

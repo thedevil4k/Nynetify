@@ -11,6 +11,7 @@ class RadioManager {
 public:
     static inline std::vector<RadioStation> stations;
     static inline std::unordered_set<int> fav_cache;
+    static inline std::unordered_set<int> failed_stations;
     static inline std::string user_country_code = "ES";
     static inline std::string current_country_filter = "";
     static inline bool radio_mode = false;
@@ -76,6 +77,14 @@ public:
 
     static bool is_favorite(int station_id) {
         return fav_cache.contains(station_id);
+    }
+
+    static bool is_failed(int station_id) {
+        return failed_stations.contains(station_id);
+    }
+
+    static void mark_failed(int station_id) {
+        failed_stations.insert(station_id);
     }
 
     static void add_custom(const std::string& name, const std::string& url,
