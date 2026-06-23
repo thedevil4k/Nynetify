@@ -120,6 +120,7 @@ struct Lang {
     const char* radio_station_url;
     const char* radio_custom_name;
     const char* radio_custom_url;
+    const char* radio_refresh_url;
 
     // Status bar / window title
     const char* status_prefix;
@@ -232,6 +233,7 @@ inline Lang LANG_EN = {
     "Station URL:",
     "Station Name:",
     "Stream URL:",
+    "Refresh URL",
     // Status / title
     "Nynetify v1.0",
     "Nynetify"
@@ -343,6 +345,7 @@ inline Lang LANG_ES = {
     "URL de la emisora:",
     "Nombre de la emisora:",
     "URL del stream:",
+    "Refrescar URL",
     // Status / title
     "Nynetify v1.0",
     "Nynetify"

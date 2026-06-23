@@ -16,6 +16,7 @@
 #include "Theme.h"
 #include "PlayerEngine.h"
 #include "ModernButton.h"
+#include "Spawn.h"
 #include "ProgressSlider.h"
 #include "ModernSlider.h"
 #include "ModernChoice.h"
@@ -220,12 +221,69 @@ void twitch_toggle_cb(Fl_Widget* w, void* data) {
         search_cb(searchBar, resultsBrowser);
 }
 
+/* Async search helpers */
+struct SearchTask {
+    std::string query;
+    std::string region;
+    int filter_type = 0;
+    int platform = 0;
+    int max_results = 0;
+    int sequence = 0;
+    std::vector<SearchResult> results;
+};
+
+static int search_sequence = 0;
+
+static void add_result_row(Fl_Browser* browser, const SearchResult& res) {
+    if (res.is_channel) {
+        if (res.is_live)
+            browser->add((std::string("\xe2\x97\x8f\t") + res.title + "\t" + res.author).c_str());
+        else
+            browser->add((std::string("\t") + res.title + "\t" + res.author).c_str());
+    } else if (res.is_video) {
+        browser->add((std::string("\t") + res.title + "\t" + res.author).c_str());
+    } else if (res.is_playlist) {
+        browser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
+    } else {
+        bool is_fav = PlaylistManager::is_favorite(res.video_id);
+        std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
+        browser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+    }
+}
+
+void search_completed_cb(void* data) {
+    auto* task = (SearchTask*)data;
+    if (!resultsBrowser) { delete task; return; }
+    if (task->sequence != search_sequence) { delete task; return; }
+    std::cout << "[UI] Found " << task->results.size() << " results." << std::endl;
+
+    last_results = std::move(task->results);
+    delete task;
+    auto* browser = resultsBrowser;
+
+    total_loaded_results = 0;
+    browser->clear();
+
+    if (last_results.empty()) {
+        browser->add(lang->search_failed);
+        browser->redraw();
+        return;
+    }
+
+    int to_show = std::min(2, (int)last_results.size());
+    for (int i = 0; i < to_show; i++)
+        add_result_row(browser, last_results[i]);
+    total_loaded_results = to_show;
+
+    if (total_loaded_results < (int)last_results.size())
+        Fl::add_timeout(0.05, progressive_fill_cb);
+    browser->redraw();
+}
+
 void search_cb(Fl_Widget* w, void* data) {
     current_category = "SEARCH";
     current_playlist = "";
     auto* input   = (Fl_Input*)w;
-    auto* browser = (Fl_Browser*)data;
-    browser->clear();
 
     std::string query = input->value();
     if (query.empty()) return;
@@ -234,38 +292,28 @@ void search_cb(Fl_Widget* w, void* data) {
     if (searchFilter) last_search_filter = searchFilter->value();
 
     std::cout << "[UI] Searching for: " << query << "..." << std::endl;
-    try {
-        if (searchPlatform == 1) {
-            last_results = TwitchClient::search(query, settings.initialFetchSize);
-        } else {
-            last_results = YoutubeService::search(query, user_region, last_search_filter, settings.initialFetchSize);
+
+    auto* task = new SearchTask();
+    task->query = query;
+    task->region = user_region;
+    task->filter_type = last_search_filter;
+    task->platform = searchPlatform;
+    task->max_results = settings.initialFetchSize;
+    task->sequence = ++search_sequence;
+
+    std::thread([task]() {
+        try {
+            if (task->platform == 1)
+                task->results = TwitchClient::search(task->query, task->max_results);
+            else
+                task->results = YoutubeService::search(task->query, task->region, task->filter_type, task->max_results);
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Search failed: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[ERROR] Search failed: unknown exception" << std::endl;
         }
-        std::cout << "[UI] Found " << last_results.size() << " results." << std::endl;
-
-        total_loaded_results = 0;
-        browser->clear();
-
-        int to_show = std::min(2, (int)last_results.size());
-        for (int i = 0; i < to_show; i++) {
-            const auto& res = last_results[i];
-            if (res.is_channel)
-                browser->add((std::string("@C255\x40\t") + res.title + "\t" + res.author).c_str());
-            else if (res.is_playlist)
-                browser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
-            else {
-                bool is_fav = PlaylistManager::is_favorite(res.video_id);
-                std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-                browser->add((star + "\t" + res.title + "\t" + res.author).c_str());
-            }
-        }
-        total_loaded_results = to_show;
-
-        if (total_loaded_results < (int)last_results.size())
-            Fl::add_timeout(0.05, progressive_fill_cb);
-    } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Search failed: " << e.what() << std::endl;
-        browser->add(lang->search_failed);
-    }
+        Fl::awake(search_completed_cb, task);
+    }).detach();
 }
 
 void progressive_fill_cb(void* data) {
@@ -273,18 +321,8 @@ void progressive_fill_cb(void* data) {
 
     int batch = std::min(3, (int)last_results.size() - total_loaded_results);
     auto* browser = resultsBrowser;
-    for (int i = total_loaded_results; i < total_loaded_results + batch; i++) {
-        const auto& res = last_results[i];
-        if (res.is_channel)
-            browser->add((std::string("@C255\x40\t") + res.title + "\t" + res.author).c_str());
-        else if (res.is_playlist)
-            browser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
-        else {
-            bool is_fav = PlaylistManager::is_favorite(res.video_id);
-            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-            browser->add((star + "\t" + res.title + "\t" + res.author).c_str());
-        }
-    }
+    for (int i = total_loaded_results; i < total_loaded_results + batch; i++)
+        add_result_row(browser, last_results[i]);
     total_loaded_results += batch;
     browser->redraw();
 
@@ -305,6 +343,37 @@ void progressive_fill_cb(void* data) {
     Fl::repeat_timeout(0.05, progressive_fill_cb);
 }
 
+void load_more_completed_cb(void* data) {
+    auto* task = (SearchTask*)data;
+    if (!resultsBrowser) { delete task; return; }
+    if (task->sequence != search_sequence) { delete task; return; }
+    auto* browser = resultsBrowser;
+
+    if (task->results.empty()) {
+        delete task;
+        browser->redraw();
+        return;
+    }
+
+    int prev_total = (int)last_results.size();
+    for (int i = prev_total; i < (int)task->results.size(); i++)
+        last_results.push_back(std::move(task->results[i]));
+    delete task;
+
+    int to_add = std::min(settings.scrollBatchSize, (int)last_results.size() - total_loaded_results);
+    for (int i = total_loaded_results; i < total_loaded_results + to_add; i++)
+        add_result_row(browser, last_results[i]);
+    total_loaded_results += to_add;
+
+    if (total_loaded_results < (int)last_results.size()) {
+        std::string more = "@C150\xe2\x96\xb8  " + std::string(lang->show_more_prefix)
+                         + std::to_string((int)last_results.size() - total_loaded_results)
+                         + lang->remaining_suffix;
+        browser->add(more.c_str());
+    }
+    browser->redraw();
+}
+
 void load_more_search_results() {
     auto* browser = resultsBrowser;
     if (!browser) return;
@@ -317,38 +386,28 @@ void load_more_search_results() {
 
     int prev_total = (int)last_results.size();
     int new_limit  = prev_total + settings.initialFetchSize;
-    std::vector<SearchResult> fresh;
-    if (searchPlatform == 1) {
-        fresh = TwitchClient::search(last_search_query, new_limit);
-    } else {
-        fresh = YoutubeService::search(last_search_query, user_region, last_search_filter, new_limit);
-    }
 
-    for (int i = prev_total; i < (int)fresh.size(); i++)
-        last_results.push_back(fresh[i]);
+    auto* task = new SearchTask();
+    task->query = last_search_query;
+    task->filter_type = last_search_filter;
+    task->region = user_region;
+    task->platform = searchPlatform;
+    task->max_results = new_limit;
+    task->sequence = search_sequence;
 
-    int to_add = std::min(settings.scrollBatchSize, (int)last_results.size() - total_loaded_results);
-    for (int i = total_loaded_results; i < total_loaded_results + to_add; i++) {
-        const auto& res = last_results[i];
-        if (res.is_channel)
-            browser->add((std::string("@C255\x40\t") + res.title + "\t" + res.author).c_str());
-        else if (res.is_playlist)
-            browser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
-        else {
-            bool is_fav = PlaylistManager::is_favorite(res.video_id);
-            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-            browser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+    std::thread([task]() {
+        try {
+            if (task->platform == 1)
+                task->results = TwitchClient::search(task->query, task->max_results);
+            else
+                task->results = YoutubeService::search(task->query, task->region, task->filter_type, task->max_results);
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Load more failed: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[ERROR] Load more failed: unknown exception" << std::endl;
         }
-    }
-    total_loaded_results += to_add;
-
-    if (total_loaded_results < (int)last_results.size()) {
-        std::string more = "@C150\xe2\x96\xb8  " + std::string(lang->show_more_prefix)
-                         + std::to_string((int)last_results.size() - total_loaded_results)
-                         + lang->remaining_suffix;
-        browser->add(more.c_str());
-    }
-    browser->redraw();
+        Fl::awake(load_more_completed_cb, task);
+    }).detach();
 }
 
 /* ================================================================
@@ -793,29 +852,7 @@ void download_cb(Fl_Widget* w, void* data) {
     auto* titleCopy = new std::string(title);
     auto* filenameCopy = new std::string(filename);
     std::thread([cmd, titleCopy, filenameCopy]() {
-#ifdef _WIN32
-        if (settings.debugMode) {
-            std::system(cmd.c_str());
-        } else {
-            // Use CreateProcess with CREATE_NO_WINDOW to hide console
-            STARTUPINFOA si = { sizeof(si) };
-            si.dwFlags = STARTF_USESHOWWINDOW;
-            si.wShowWindow = SW_HIDE;
-            PROCESS_INFORMATION pi;
-            std::string cmdline = cmd;
-            if (CreateProcessA(NULL, &cmdline[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-                WaitForSingleObject(pi.hProcess, INFINITE);
-                CloseHandle(pi.hProcess);
-                CloseHandle(pi.hThread);
-            }
-        }
-#else
-        std::string fullCmd = cmd;
-        if (!settings.debugMode) {
-            fullCmd += " 2>/dev/null";
-        }
-        std::system(fullCmd.c_str());
-#endif
+        run_hidden(cmd, settings.debugMode, false);
         
         // Clean up the original webm file after conversion
         std::string webm_file = filenameCopy->substr(0, filenameCopy->length() - 4) + ".webm";
@@ -906,6 +943,8 @@ void radio_station_cb(Fl_Widget* w, void* data) {
         heartBtn->redraw();
     }
 
+    update_radio_cover(station.logo);
+
     player->play(station.stream_url);
     if (playBtn) playBtn->redraw();
 }
@@ -924,12 +963,17 @@ void radio_country_cb(Fl_Widget* w, void* data) {
 }
 
 void radio_add_custom_cb(Fl_Widget* w, void* data) {
-    // Create a small dialog window for adding a custom station
     auto* win = new Fl_Double_Window(400, 200, lang->radio_add_custom);
     win->color(Theme::SIDEBAR);
     if (Fl::first_window())
         win->position(Fl::first_window()->x() + (Fl::first_window()->w() - win->w()) / 2,
                       Fl::first_window()->y() + (Fl::first_window()->h() - win->h()) / 2);
+
+    auto* closeBtn = new ModernButton(370, 5, 25, 25, "\xc3\x97");
+    closeBtn->color(Theme::HOVER);
+    closeBtn->labelcolor(Theme::TEXT_SECONDARY);
+    closeBtn->labelsize(16);
+    closeBtn->callback([](Fl_Widget* btn, void*) { btn->parent()->hide(); });
 
     auto* nameLabel = new Fl_Box(20, 20, 100, 25, lang->radio_custom_name);
     nameLabel->labelcolor(Theme::TEXT_PRIMARY);
@@ -956,7 +1000,6 @@ void radio_add_custom_cb(Fl_Widget* w, void* data) {
         std::string url = inputs[1]->value();
         if (!name.empty() && !url.empty()) {
             RadioManager::add_custom(name, url, "Custom", "INT");
-            // Re-init to reload lists
             RadioManager::sort_by_country();
             show_radio_view();
         }
@@ -991,4 +1034,40 @@ void radio_search_online_cb(Fl_Widget* w, void* data) {
     }
     RadioManager::sort_by_country();
     show_radio_view();
+}
+
+void radio_refresh_url_cb(Fl_Widget* w, void* data) {
+    if (!radioBrowser) return;
+    int line = radioBrowser->value();
+    if (line <= 0) {
+        show_styled_message(lang->radio_no_stations);
+        return;
+    }
+    auto list = RadioManager::filtered();
+    if (line > (int)list.size()) return;
+
+    const auto& station = list[line - 1];
+    if (station.is_custom) {
+        show_styled_message("Cannot refresh custom station URL");
+        return;
+    }
+
+    // Find global index
+    int global_idx = -1;
+    for (int i = 0; i < (int)RadioManager::stations.size(); i++) {
+        if (RadioManager::stations[i].id == station.id) {
+            global_idx = i;
+            break;
+        }
+    }
+    if (global_idx < 0) return;
+
+    bool updated = RadioManager::refresh_station_url(global_idx);
+    if (updated) {
+        std::string msg = std::string("URL updated for: ") + RadioManager::stations[global_idx].name;
+        show_styled_message(msg.c_str());
+    } else {
+        show_styled_message("No better URL found");
+    }
+    refresh_radio_browser();
 }

@@ -94,8 +94,8 @@ extern Fl_Box* coverArtBox;
 extern Fl_Box* nowPlayingBox;
 extern Fl_Button* nowPlayingArtistBox;
 extern Fl_Box* miniCoverArtBox;
-extern Fl_JPEG_Image* currentImage;
-extern Fl_JPEG_Image* miniCurrentImage;
+extern Fl_Image* currentImage;
+extern Fl_Image* miniCurrentImage;
 
 // Language-sensitive sidebar widgets
 extern ModernButton* sidebarHomeBtn;
@@ -190,6 +190,8 @@ void scroll_batch_cb(Fl_Widget* w, void* data);
 void refresh_current_view();
 std::string format_time(double seconds);
 void update_cover_art(const std::string& video_id);
+void update_radio_cover(const std::string& logo_path);
+void clear_radio_cover();
 void detect_region();
 
 // Async callbacks
@@ -225,6 +227,7 @@ void playlist_delete_click_cb(Fl_Widget* w, void* data);
 void radio_station_cb(Fl_Widget* w, void* data);
 void radio_country_cb(Fl_Widget* w, void* data);
 void radio_add_custom_cb(Fl_Widget* w, void* data);
-void radio_search_online_cb(Fl_Widget* w, void* data);
+
+void radio_refresh_url_cb(Fl_Widget* w, void* data);
 
 #endif // GLOBALS_H

@@ -13,6 +13,9 @@ struct SearchResult {
     bool is_channel = false;
     bool is_live = false;
     bool is_twitch = false;
+    bool is_video = false;
+    std::string thumbnail_url;
+    std::string length;
 };
 
 #endif

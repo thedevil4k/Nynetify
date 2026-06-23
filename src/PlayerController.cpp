@@ -4,11 +4,13 @@
 #include <cstdlib>
 #include "PlayerController.h"
 #include "Globals.h"
+#include "ViewManager.h"
 #include "PlayerEngine.h"
 #include "ProgressSlider.h"
 #include "ModernButton.h"
 #include "PlaylistManager.h"
 #include "RadioManager.h"
+#include "YoutubeService.h"
 #include "UIWidgets.h"   /* CircularButton, HeartButton */
 
 /* ================================================================
@@ -54,16 +56,22 @@ void play_index(int index) {
     if (!play_queue[index].is_twitch)
         update_cover_art(video_id);
 
-    /* Start playback via mpv + yt-dlp */
+    /* Start playback — pre-resolve URLs to avoid console flash from mpv's ytdl */
     std::string stream_url;
     if (play_queue[index].is_twitch) {
-        /* Construct Twitch URL — mpv + yt-dlp handles HLS extraction */
+        /* Twitch needs mpv's ytdl for HLS extraction */
+        player->set_ytdl(true);
         if (play_queue[index].is_live)
             stream_url = "https://www.twitch.tv/" + video_id;
         else
             stream_url = "https://www.twitch.tv/videos/" + video_id;
     } else {
-        stream_url = YoutubeService::get_audio_url(video_id);
+        /* Pre-resolve YouTube URL using hidden yt-dlp, then play direct */
+        player->set_ytdl(false);
+        stream_url = YoutubeService::resolve_audio_url(video_id);
+        if (stream_url.empty()) {
+            std::cerr << "[ERROR] Could not resolve audio URL for: " << video_id << std::endl;
+        }
     }
     if (!stream_url.empty()) {
         player->play(stream_url);
@@ -83,6 +91,7 @@ void play_next() {
             nowPlayingBox->copy_label(np.c_str());
         }
         if (nowPlayingArtistBox) nowPlayingArtistBox->copy_label(lang->radio_live);
+        update_radio_cover(st.logo);
         player->play(st.stream_url);
         return;
     }
@@ -105,6 +114,7 @@ void play_prev() {
             nowPlayingBox->copy_label(np.c_str());
         }
         if (nowPlayingArtistBox) nowPlayingArtistBox->copy_label(lang->radio_live);
+        update_radio_cover(st.logo);
         player->play(st.stream_url);
         return;
     }
@@ -171,6 +181,7 @@ void update_ui_cb(void* data) {
                     nowPlayingArtistBox->copy_label(lang->radio_live);
                     nowPlayingArtistBox->redraw();
                 }
+                update_radio_cover(st.logo);
                 player->play(st.stream_url);
             }
         } else {

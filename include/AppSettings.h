@@ -36,6 +36,7 @@ struct AppSettings {
 
 /* Persistence helpers */
 void save_settings();
+void save_settings_now();
 void load_settings();
 
 /* Returns the OS default Downloads folder (%USERPROFILE%\Downloads) */

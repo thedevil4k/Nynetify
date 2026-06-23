@@ -104,11 +104,17 @@ int ResultsBrowser::handle(int event) {
                                  (int)last_results.size() - total_loaded_results);
             for (int i = 0; i < batch; i++) {
                 const auto& res = last_results[total_loaded_results + i];
-                if (res.is_channel)
-                    add((std::string("@C255\x40\t") + res.title + "\t" + res.author).c_str());
-                else if (res.is_playlist)
+                std::string prefix;
+                if (res.is_channel) {
+                    if (res.is_live)
+                        add((std::string("\xe2\x97\x8f\t") + res.title + "\t" + res.author).c_str());
+                    else
+                        add((std::string("\t") + res.title + "\t" + res.author).c_str());
+                } else if (res.is_video) {
+                    add((std::string("\t") + res.title + "\t" + res.author).c_str());
+                } else if (res.is_playlist) {
                     add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
-                else {
+                } else {
                     bool is_fav = PlaylistManager::is_favorite(res.video_id);
                     std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
                     add((star + "\t" + res.title + "\t" + res.author).c_str());

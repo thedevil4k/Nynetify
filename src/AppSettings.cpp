@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <limits.h>
 #endif
+#include <FL/Fl.H>
 #include "AppSettings.h"
 #include "Globals.h"
 
@@ -37,8 +38,10 @@ std::string get_default_downloads_path() {
 #endif
 }
 
-/* ── Save ────────────────────────────────────────── */
-void save_settings() {
+static bool save_pending = false;
+
+static void save_settings_impl() {
+    save_pending = false;
     std::string path = "settings.cfg";
     std::ofstream f(path);
     if (!f) return;
@@ -51,6 +54,21 @@ void save_settings() {
     f << "searchProvider="   << static_cast<int>(settings.searchProvider) << "\n";
     f << "searchPlatform="   << settings.searchPlatform             << "\n";
     f << "downloadPath="     << settings.downloadPath             << "\n";
+}
+
+static void deferred_save_cb(void*) {
+    save_settings_impl();
+}
+
+void save_settings() {
+    if (save_pending) Fl::remove_timeout(deferred_save_cb);
+    save_pending = true;
+    Fl::add_timeout(0.5, deferred_save_cb);
+}
+
+void save_settings_now() {
+    if (save_pending) Fl::remove_timeout(deferred_save_cb);
+    save_settings_impl();
 }
 
 /* ── Load ────────────────────────────────────────── */

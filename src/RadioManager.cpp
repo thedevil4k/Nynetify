@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <cctype>
 #include "RadioManager.h"
+#include "Spawn.h"
 
 static std::string url_encode(const std::string& value) {
     std::ostringstream escaped;
@@ -92,7 +93,7 @@ std::vector<RadioStation> RadioManager::search_online(const std::string& query) 
                       + url_encode(query);
     std::string temp_file = "radio_search.json";
     std::string cmd = "curl -s -L -o " + temp_file + " --max-time 15 \"" + url + "\"";
-    system(cmd.c_str());
+    run_hidden(cmd, false, false);
 
     if (!std::filesystem::exists(temp_file)) return results;
 
@@ -171,4 +172,100 @@ std::vector<RadioStation> RadioManager::search_online(const std::string& query) 
         std::filesystem::remove(temp_file);
     }
     return results;
+}
+
+bool RadioManager::refresh_station_url(int station_id) {
+    if (station_id < 0 || station_id >= (int)stations.size()) return false;
+    RadioStation& st = stations[station_id];
+    if (st.is_custom) return false; // don't refresh custom stations
+
+    // Query radio-browser.info by station name and country code
+    std::string safe_name;
+    for (char c : st.name) {
+        if (c == ' ') safe_name += "%20";
+        else if (c == '&') safe_name += "%26";
+        else safe_name += c;
+    }
+    std::string url = "https://de1.api.radio-browser.info/json/stations/search?name="
+                      + safe_name + "&countrycode=" + st.country_code
+                      + "&limit=5&order=clickcount&reverse=true";
+    std::string temp_file = "radio_refresh.json";
+    std::string cmd = "curl -s -L -o " + temp_file + " --max-time 15 \"" + url + "\"";
+    run_hidden(cmd, false, false);
+
+    if (!std::filesystem::exists(temp_file)) return false;
+
+    std::string best_url;
+    int best_bitrate = 0;
+    bool found = false;
+
+    try {
+        std::ifstream ifs(temp_file);
+        std::string json;
+        std::getline(ifs, json, '\0');
+        ifs.close();
+        std::filesystem::remove(temp_file);
+
+        size_t pos = 0;
+        while ((pos = json.find("\"name\"", pos)) != std::string::npos) {
+            size_t name_start = json.find('"', pos + 7);
+            if (name_start == std::string::npos) break;
+            size_t name_end = json.find('"', name_start + 1);
+            if (name_end == std::string::npos) break;
+            std::string name = json.substr(name_start + 1, name_end - name_start - 1);
+
+            // Skip if name doesn't roughly match
+            std::string st_name_lower = st.name;
+            std::string api_name_lower = name;
+            for (auto& c : st_name_lower) c = (char)tolower(c);
+            for (auto& c : api_name_lower) c = (char)tolower(c);
+            if (api_name_lower.find(st_name_lower) == std::string::npos &&
+                st_name_lower.find(api_name_lower) == std::string::npos) {
+                pos = name_end;
+                continue;
+            }
+
+            size_t url_pos = json.find("\"url\"", name_end);
+            if (url_pos == std::string::npos || url_pos > pos + 800) { pos = name_end; continue; }
+            size_t url_start = json.find('"', url_pos + 6);
+            if (url_start == std::string::npos) break;
+            size_t url_end = json.find('"', url_start + 1);
+            if (url_end == std::string::npos) break;
+            std::string stream = json.substr(url_start + 1, url_end - url_start - 1);
+            for (auto& c : stream) if (c == '\\') { c = '/'; break; }
+
+            // Find bitrate
+            int bitrate = 0;
+            size_t br_pos = json.find("\"bitrate\"", url_end);
+            if (br_pos != std::string::npos && br_pos < url_end + 300) {
+                size_t colon = json.find(':', br_pos + 9);
+                if (colon != std::string::npos) {
+                    size_t end = json.find(',', colon);
+                    if (end == std::string::npos) end = json.find('}', colon);
+                    if (end != std::string::npos) {
+                        std::string val = json.substr(colon + 1, end - colon - 1);
+                        // Trim spaces
+                        while (!val.empty() && val[0] == ' ') val.erase(0, 1);
+                        bitrate = atoi(val.c_str());
+                    }
+                }
+            }
+
+            // Pick the best bitrate URL
+            if (bitrate > best_bitrate) {
+                best_bitrate = bitrate;
+                best_url = stream;
+                found = true;
+            }
+            pos = url_end;
+        }
+    } catch (...) {
+        std::filesystem::remove(temp_file);
+    }
+
+    if (found && best_url != st.stream_url) {
+        st.stream_url = best_url;
+        return true;
+    }
+    return false;
 }

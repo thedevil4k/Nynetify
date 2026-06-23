@@ -31,6 +31,7 @@
 #include <ctime>
 #include <cstdlib>
 #include <filesystem>
+#include <curl/curl.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -48,6 +49,7 @@
 #include "ModernSlider.h"
 #include "ModernChoice.h"
 #include "UIWidgets.h"
+#include "AssetPath.h"
 #include "AppCallbacks.h"
 #include "PlayerController.h"
 #include "RadioManager.h"
@@ -100,8 +102,8 @@ Fl_Box* coverArtBox = nullptr;
 Fl_Box* nowPlayingBox = nullptr;
 Fl_Button* nowPlayingArtistBox = nullptr;
 Fl_Box* miniCoverArtBox = nullptr;
-Fl_JPEG_Image* currentImage = nullptr;
-Fl_JPEG_Image* miniCurrentImage = nullptr;
+Fl_Image* currentImage = nullptr;
+Fl_Image* miniCurrentImage = nullptr;
 
 ModernButton* sidebarHomeBtn = nullptr;
 ModernButton* sidebarSearchBtn = nullptr;
@@ -135,46 +137,35 @@ int searchPlatform = 0; // 0 = YouTube, 1 = Twitch
 int main(int argc, char **argv) {
     srand((unsigned int)time(nullptr));
 
-    /* Initialise player & region detection (async) */
+    /* Lightweight pre-init — must succeed before UI */
     try {
-        player = new PlayerEngine();
+        PlaylistManager::ensure_directories();
+    } catch (...) {
 #ifdef _WIN32
-        self = GetCurrentProcess();
-#endif
-        try {
+        const char* appdata = getenv("APPDATA");
+        if (appdata) {
+            std::filesystem::path appDir = std::filesystem::path(appdata) / "Nynetify";
+            std::filesystem::create_directories(appDir);
+            std::filesystem::current_path(appDir);
             PlaylistManager::ensure_directories();
-        } catch (...) {
-#ifdef _WIN32
-            const char* appdata = getenv("APPDATA");
-            if (appdata) {
-                std::filesystem::path appDir = std::filesystem::path(appdata) / "Nynetify";
-                std::filesystem::create_directories(appDir);
-                std::filesystem::current_path(appDir);
-                PlaylistManager::ensure_directories();
-            } else {
-                throw;
-            }
-#else
-            const char* home = getenv("HOME");
-            if (home) {
-                std::filesystem::path appDir = std::filesystem::path(home) / ".config" / "nynetify";
-                std::filesystem::create_directories(appDir);
-                std::filesystem::current_path(appDir);
-                PlaylistManager::ensure_directories();
-            } else {
-                throw;
-            }
-#endif
+        } else {
+            throw;
         }
-        detect_region();
-    } catch (const std::exception& e) {
-#ifdef _WIN32
-        MessageBoxA(nullptr, e.what(), "Nynetify Startup Error", MB_OK | MB_ICONERROR);
 #else
-        std::cerr << "Error: " << e.what() << std::endl;
+        const char* home = getenv("HOME");
+        if (home) {
+            std::filesystem::path appDir = std::filesystem::path(home) / ".config" / "nynetify";
+            std::filesystem::create_directories(appDir);
+            std::filesystem::current_path(appDir);
+            PlaylistManager::ensure_directories();
+        } else {
+            throw;
+        }
 #endif
-        return 1;
     }
+
+    /* Start async region detection immediately */
+    detect_region();
 
     Fl::background(18, 18, 18);
     auto* window = new Fl_Double_Window(1000, 750, lang->window_title);
@@ -214,14 +205,14 @@ int main(int argc, char **argv) {
     sidebarLikedBtn->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     sidebarLikedBtn->callback([](Fl_Widget*, void*){ show_favorites_view(); });
 
-    sidebarPlaylistList = new Fl_Hold_Browser(10, 205, 180, 345);
+    sidebarPlaylistList = new Fl_Hold_Browser(10, 200, 180, 340);
     sidebarPlaylistList->box(FL_FLAT_BOX);
     sidebarPlaylistList->color(Theme::SIDEBAR);
     sidebarPlaylistList->textcolor(Theme::TEXT_SECONDARY);
     sidebarPlaylistList->selection_color(Theme::HOVER);
     sidebarPlaylistList->callback(sidebar_playlist_cb);
 
-    sidebarNewPlaylistBtn = new ModernButton(10, 555, 180, 28, lang->create_playlist);
+    sidebarNewPlaylistBtn = new ModernButton(10, 545, 180, 28, lang->create_playlist);
     sidebarNewPlaylistBtn->callback([](Fl_Widget*, void*){
         static CreatePlaylistWindow* win = nullptr;
         if (!win) {
@@ -236,17 +227,17 @@ int main(int argc, char **argv) {
         win->show();
     });
 
-    sidebarRadioBtn = new ModernButton(10, 588, 180, 24, lang->radio);
+    sidebarRadioBtn = new ModernButton(10, 578, 180, 24, lang->radio);
     sidebarRadioBtn->color(Theme::HOVER);
     sidebarRadioBtn->labelsize(12);
     sidebarRadioBtn->callback([](Fl_Widget*, void*){ show_radio_view(); });
 
-    langToggleBtn = new ModernButton(10, 616, 180, 24, lang->language_btn);
+    langToggleBtn = new ModernButton(10, 606, 180, 24, lang->language_btn);
     langToggleBtn->color(Theme::HOVER);
     langToggleBtn->labelsize(12);
     langToggleBtn->callback(lang_btn_cb);
 
-    sidebarPrefsBtn = new ModernButton(10, 644, 180, 24, lang->settings);
+    sidebarPrefsBtn = new ModernButton(10, 634, 180, 24, lang->settings);
     sidebarPrefsBtn->labelsize(12);
     sidebarPrefsBtn->callback(open_prefs_window_cb);
 
@@ -297,19 +288,33 @@ int main(int argc, char **argv) {
     searchBg->color(Theme::BACKGROUND);
 
     /* Platform toggle buttons */
+    Fl_PNG_Image* yt_logo_img = nullptr;
+    Fl_PNG_Image* twitch_logo_img = nullptr;
+    try {
+        yt_logo_img = new Fl_PNG_Image(get_asset_path("yt.png").c_str());
+        if (yt_logo_img->w() <= 0) { delete yt_logo_img; yt_logo_img = nullptr; }
+    } catch (...) { yt_logo_img = nullptr; }
+    try {
+        twitch_logo_img = new Fl_PNG_Image(get_asset_path("twitch.png").c_str());
+        if (twitch_logo_img->w() <= 0) { delete twitch_logo_img; twitch_logo_img = nullptr; }
+    } catch (...) { twitch_logo_img = nullptr; }
+
     ytToggleBtn = new ModernButton(220, 20, 42, 28, "YT");
     ytToggleBtn->labelsize(11);
     ytToggleBtn->labelcolor(Theme::TEXT_PRIMARY);
     ytToggleBtn->color(Theme::ACCENT);
     ytToggleBtn->callback(yt_toggle_cb);
+    if (yt_logo_img) ytToggleBtn->set_image(yt_logo_img);
 
     twitchToggleBtn = new ModernButton(266, 20, 42, 28, "TW");
     twitchToggleBtn->labelsize(11);
     twitchToggleBtn->labelcolor(Theme::TEXT_PRIMARY);
     twitchToggleBtn->color(Theme::HOVER);
     twitchToggleBtn->callback(twitch_toggle_cb);
+    if (twitch_logo_img) twitchToggleBtn->set_image(twitch_logo_img);
 
     /* Restore persisted platform choice */
+    load_settings();
     searchPlatform = settings.searchPlatform;
     if (searchPlatform == 1) {
         ytToggleBtn->color(Theme::HOVER);
@@ -355,22 +360,22 @@ int main(int argc, char **argv) {
     radioBrowser->type(FL_HOLD_BROWSER);
     radioBrowser->selection_color(Theme::HOVER);
 
-    auto* radioAddCustomBtn = new ModernButton(220, 585, 180, 30, lang->radio_add_custom);
+    auto* radioAddCustomBtn = new ModernButton(220, 585, 130, 30, lang->radio_add_custom);
     radioAddCustomBtn->color(Theme::HOVER);
     radioAddCustomBtn->labelcolor(Theme::TEXT_PRIMARY);
     radioAddCustomBtn->callback(radio_add_custom_cb);
 
-    auto* radioSearchOnlineBtn = new ModernButton(410, 585, 180, 30, lang->radio_search_online);
-    radioSearchOnlineBtn->color(Theme::HOVER);
-    radioSearchOnlineBtn->labelcolor(Theme::TEXT_PRIMARY);
-    radioSearchOnlineBtn->callback(radio_search_online_cb);
-
-    auto* radioFavToggle = new ModernButton(600, 585, 140, 30, lang->radio_favs);
+    auto* radioFavToggle = new ModernButton(410, 585, 130, 30, lang->radio_favs);
     radioFavToggle->color(Theme::HOVER);
     radioFavToggle->labelcolor(Theme::TEXT_PRIMARY);
     radioFavToggle->callback([](Fl_Widget*, void*){
         show_radio_view();
     });
+
+    auto* radioRefreshUrlBtn = new ModernButton(600, 585, 130, 30, lang->radio_refresh_url);
+    radioRefreshUrlBtn->color(Theme::HOVER);
+    radioRefreshUrlBtn->labelcolor(Theme::TEXT_PRIMARY);
+    radioRefreshUrlBtn->callback(radio_refresh_url_cb);
 
     radioGroup->end();
     radioGroup->hide();
@@ -520,23 +525,39 @@ int main(int argc, char **argv) {
     statusBar->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     if (!settings.showStatusBar) statusBar->hide();
 
-    /* ── Initial state ────────────────────────────── */
+    /* ── Post-show deferred init ──────────────────── */
     show_home_view();
     load_sidebar_playlists();
-
-    Fl::add_timeout(0.2, update_ui_cb);
-    Fl::add_timeout(0.5, update_status_bar_cb);
-
-    load_settings();
-    RadioManager::init(user_region);
-    YoutubeService::setDebugMode(settings.debugMode);
-    YoutubeService::setUseInvidious(settings.searchProvider == AppSettings::SearchProvider::Invidious);
     apply_language();
 
     window->end();
     window->show(argc, argv);
+
+    /* Heavy blocking init — user already sees the window */
+    try {
+        player = new PlayerEngine();
+#ifdef _WIN32
+        self = GetCurrentProcess();
+#endif
+    } catch (const std::exception& e) {
+#ifdef _WIN32
+        MessageBoxA(nullptr, e.what(), "Nynetify Player Error", MB_OK | MB_ICONERROR);
+#else
+        std::cerr << "Player error: " << e.what() << std::endl;
+#endif
+    }
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    RadioManager::init(user_region);
+    YoutubeService::setDebugMode(settings.debugMode);
+    YoutubeService::setUseInvidious(settings.searchProvider == AppSettings::SearchProvider::Invidious);
+
+    Fl::add_timeout(0.15, update_ui_cb);
+    Fl::add_timeout(0.5, update_status_bar_cb);
+
     systemTray = new SystemTray(window);
     int ret = Fl::run();
+    save_settings_now();
     delete systemTray;
     delete player;
     return ret;

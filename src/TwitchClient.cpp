@@ -74,7 +74,7 @@ std::vector<SearchResult> TwitchClient::search(const std::string& query, int max
   {
     "operationName": "SearchResultsPage_SearchResults",
     "variables": {"searchTerm": ")" + q_escaped + R"("},
-    "query": "query SearchResultsPage_SearchResults($searchTerm: String!) { searchFor(userQuery: $searchTerm, platform: \"all\") { channels { items { ... on User { id displayName login description followers { totalCount } profileImageURL(width: 50) stream { id viewersCount title game { displayName } } } } } } }"
+    "query": "query SearchResultsPage_SearchResults($searchTerm: String!) { searchFor(userQuery: $searchTerm, platform: \"all\") { channels { items { ... on User { id displayName login description followers { totalCount } profileImageURL(width: 50) stream { id viewersCount title game { displayName } } } } } videos { items { id title previewThumbnailURL lengthSeconds game { displayName } owner { login displayName } } } } }"
   }
 ])";
 
@@ -91,47 +91,68 @@ std::vector<SearchResult> TwitchClient::search(const std::string& query, int max
         /* GQL wraps in array; unwrap */
         if (j.is_array() && !j.empty()) j = j[0];
 
-        auto& data = j["data"]["searchFor"]["channels"]["items"];
-        if (!data.is_array()) {
-            std::cerr << "[TWITCH] Unexpected response structure" << std::endl;
-            return results;
+        auto& searchFor = j["data"]["searchFor"];
+
+        /* Parse channels */
+        auto& channels = searchFor["channels"]["items"];
+        if (channels.is_array()) {
+            for (auto& item : channels) {
+                SearchResult sr;
+                sr.is_twitch   = true;
+                sr.is_channel  = true;
+                sr.channel_id  = item.value("id", "");
+                sr.video_id    = item.value("login", "");
+                sr.title       = item.value("displayName", "");
+                sr.author      = item.value("displayName", "");
+
+                if (!item["stream"].is_null()) {
+                    sr.is_live = true;
+                    auto& stream = item["stream"];
+                    std::string game;
+                    if (stream.contains("game") && !stream["game"].is_null())
+                        game = stream["game"].value("displayName", "");
+                    std::string stream_title = stream.value("title", "");
+                    int viewers = stream.value("viewersCount", 0);
+
+                    if (!game.empty())
+                        sr.title = sr.author + " - " + game;
+                    if (viewers > 0)
+                        sr.title += " [" + std::to_string(viewers) + " viewers]";
+                    if (!stream_title.empty())
+                        sr.title += " | " + stream_title;
+                }
+
+                results.push_back(sr);
+                if ((int)results.size() >= max_results) break;
+            }
         }
 
-        for (auto& item : data) {
-            SearchResult sr;
-            sr.is_twitch   = true;
-            sr.is_channel  = true;
-            sr.channel_id  = item.value("id", "");
-            sr.video_id    = item.value("login", "");  // channel login for URL
-            sr.title       = item.value("displayName", "");
-            sr.author      = item.value("displayName", "");
+        /* Parse videos */
+        auto& videos = searchFor["videos"]["items"];
+        if (videos.is_array() && (int)results.size() < max_results) {
+            for (auto& item : videos) {
+                SearchResult sr;
+                sr.is_twitch   = true;
+                sr.is_video    = true;
+                sr.channel_id  = item["owner"].value("login", "");
+                sr.video_id    = item.value("id", "");
+                sr.title       = item.value("title", "");
+                sr.author      = item["owner"].value("displayName", "");
+                sr.thumbnail_url = item.value("previewThumbnailURL", "");
+                sr.length      = std::to_string(item.value("lengthSeconds", 0));
 
-            /* If live, show game/category in title */
-            if (!item["stream"].is_null()) {
-                sr.is_live = true;
-                auto& stream = item["stream"];
-                std::string game;
-                if (stream.contains("game") && !stream["game"].is_null())
-                    game = stream["game"].value("displayName", "");
-                std::string stream_title = stream.value("title", "");
-                int viewers = stream.value("viewersCount", 0);
+                if (item.contains("game") && !item["game"].is_null())
+                    sr.title += " - " + item["game"].value("displayName", "");
 
-                if (!game.empty())
-                    sr.title = sr.author + " - " + game;
-                if (viewers > 0)
-                    sr.title += " [" + std::to_string(viewers) + " viewers]";
-                if (!stream_title.empty())
-                    sr.title += " | " + stream_title;
+                results.push_back(sr);
+                if ((int)results.size() >= max_results) break;
             }
-
-            results.push_back(sr);
-            if ((int)results.size() >= max_results) break;
         }
     } catch (const std::exception& e) {
         std::cerr << "[TWITCH] Parse error: " << e.what() << std::endl;
         if (debug) std::cerr << "[TWITCH] Raw: " << resp.substr(0, 1000) << std::endl;
     }
 
-    std::cout << "[TWITCH] Found " << results.size() << " results" << std::endl;
+    std::cout << "[TWITCH] Found " << results.size() << " results (channels + videos)" << std::endl;
     return results;
 }

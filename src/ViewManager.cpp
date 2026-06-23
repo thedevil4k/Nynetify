@@ -4,6 +4,7 @@
 #include <thread>
 #include <cstdlib>
 #include <ctime>
+#include <FL/Fl_PNG_Image.H>
 #ifdef _WIN32
 #include <windows.h>
 #include <psapi.h>
@@ -23,6 +24,8 @@
 #include "AppSettings.h"    /* settings */
 #include "PlayerController.h"  /* play_index etc. */
 #include "UIWidgets.h"          /* ResultsBrowser full type */
+#include "AssetPath.h"
+#include "Spawn.h"
 
 /* ================================================================
  * View-switching functions
@@ -295,7 +298,7 @@ void show_channel_view(const std::string& channel_id,
         if (!avatar_url.empty()) {
             task->avatar_path = "cover_" + task->channel_id + ".jpg";
             std::string dl_cmd = "curl -s -L -o " + task->avatar_path + " \"" + avatar_url + "\"";
-            system(dl_cmd.c_str());
+            run_hidden(dl_cmd, false, false);
         }
 
         Fl::awake(channel_content_completed_cb, task);
@@ -345,9 +348,63 @@ void update_cover_art(const std::string& video_id) {
     std::thread([task]() {
         std::string temp_file = "cover_" + task->video_id + ".jpg";
         std::string cmd = "curl -s -L -o " + temp_file + " " + task->url;
-        system(cmd.c_str());
+        run_hidden(cmd, false, false);
         Fl::awake(cover_art_completed_cb, task);
     }).detach();
+}
+
+/* ================================================================
+ * Radio cover art (local PNG logos)
+ * ================================================================ */
+void update_radio_cover(const std::string& logo_path) {
+    if (logo_path.empty()) {
+        clear_radio_cover();
+        return;
+    }
+
+    std::string full_path = get_asset_path(logo_path);
+    Fl_PNG_Image* png = new Fl_PNG_Image(full_path.c_str());
+    if (!png || png->w() <= 0) {
+        std::cerr << "[RADIO] Failed to load logo: " << logo_path << std::endl;
+        if (png) delete png;
+        clear_radio_cover();
+        return;
+    }
+
+    /* Main cover art box (200×200) */
+    if (coverArtBox) {
+        if (currentImage) { delete currentImage; currentImage = nullptr; }
+        currentImage = png;
+        auto* scaled = currentImage->copy(coverArtBox->w(), coverArtBox->h());
+        coverArtBox->image(scaled);
+        coverArtBox->redraw();
+    }
+
+    /* Mini cover art box */
+    if (miniCoverArtBox) {
+        if (miniCurrentImage) { delete miniCurrentImage; miniCurrentImage = nullptr; }
+        miniCurrentImage = new Fl_PNG_Image(full_path.c_str());
+        if (miniCurrentImage && miniCurrentImage->w() > 0) {
+            auto* scaled = miniCurrentImage->copy(miniCoverArtBox->w(), miniCoverArtBox->h());
+            miniCoverArtBox->image(scaled);
+            miniCoverArtBox->redraw();
+        }
+    }
+
+    std::cout << "[RADIO] Loaded cover: " << logo_path << std::endl;
+}
+
+void clear_radio_cover() {
+    if (coverArtBox) {
+        if (currentImage) { delete currentImage; currentImage = nullptr; }
+        coverArtBox->image(nullptr);
+        coverArtBox->redraw();
+    }
+    if (miniCoverArtBox) {
+        if (miniCurrentImage) { delete miniCurrentImage; miniCurrentImage = nullptr; }
+        miniCoverArtBox->image(nullptr);
+        miniCoverArtBox->redraw();
+    }
 }
 
 /* ================================================================
@@ -368,7 +425,7 @@ void detect_region() {
     std::thread([]() {
         std::string temp_file = "region_temp.txt";
         std::string cmd = "curl -s -L -o " + temp_file + " https://ipapi.co/country/";
-        system(cmd.c_str());
+        run_hidden(cmd, false, false);
 
         std::string region;
         if (std::filesystem::exists(temp_file)) {

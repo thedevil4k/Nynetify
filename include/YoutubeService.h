@@ -12,6 +12,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#include "Spawn.h"
 
 static const char* YT_DLP = "yt-dlp";
 static const char* YT_DLP_FAST = " --extractor-args \"youtube:skip=hls,dash;player_client=android\" --socket-timeout 5 --retries 1";
@@ -262,6 +263,12 @@ public:
         return "https://www.youtube.com/watch?v=" + video_id;
     }
 
+    static std::string resolve_audio_url(const std::string& video_id, bool dbg = false) {
+        std::string cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
+            + " -g -f bestaudio \"https://www.youtube.com/watch?v=" + video_id + "\"" + NYN_NULL_REDIRECT;
+        return run_hidden(cmd, dbg, true);
+    }
+
     static std::string get_thumbnail_url(const std::string& video_id) {
         // We use the predictable HQ thumbnail URL for performance
         return "https://img.youtube.com/vi/" + video_id + "/hqdefault.jpg";
@@ -289,69 +296,7 @@ public:
     }
 
     static std::string execute(const std::string& cmd, bool debugMode = false) {
-#ifdef _WIN32
-        if (debugMode) {
-            std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
-            if (!pipe) throw std::runtime_error("popen() failed!");
-            std::array<char, 256> buffer;
-            std::string result;
-            while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
-                result += buffer.data();
-            }
-            while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
-                result.pop_back();
-            return result;
-        } else {
-            // Use CreateProcess with CREATE_NO_WINDOW to hide console
-            STARTUPINFOA si = { sizeof(si) };
-            si.dwFlags = STARTF_USESHOWWINDOW;
-            si.wShowWindow = SW_HIDE;
-            PROCESS_INFORMATION pi;
-            SECURITY_ATTRIBUTES sa = { sizeof(sa), NULL, TRUE };
-            HANDLE hRead, hWrite;
-            CreatePipe(&hRead, &hWrite, &sa, 0);
-            SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
-            si.hStdOutput = hWrite;
-            si.hStdError = hWrite;
-            si.dwFlags |= STARTF_USESTDHANDLES;
-            std::string cmdline = cmd;
-            if (CreateProcessA(NULL, &cmdline[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-                CloseHandle(hWrite);
-                std::string result;
-                char buffer[256];
-                DWORD bytesRead;
-                while (ReadFile(hRead, buffer, sizeof(buffer) - 1, &bytesRead, NULL) && bytesRead > 0) {
-                    buffer[bytesRead] = '\0';
-                    result += buffer;
-                }
-                WaitForSingleObject(pi.hProcess, INFINITE);
-                CloseHandle(pi.hProcess);
-                CloseHandle(pi.hThread);
-                CloseHandle(hRead);
-                while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
-                    result.pop_back();
-                return result;
-            }
-            CloseHandle(hRead);
-            CloseHandle(hWrite);
-            return "";
-        }
-#else
-        std::string fullCmd = cmd;
-        if (!debugMode) {
-            fullCmd += " 2>/dev/null";
-        }
-        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(fullCmd.c_str(), "r"), pclose);
-        if (!pipe) throw std::runtime_error("popen() failed!");
-        std::array<char, 256> buffer;
-        std::string result;
-        while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
-            result += buffer.data();
-        }
-        while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
-            result.pop_back();
-        return result;
-#endif
+        return run_hidden(cmd, debugMode, true);
     }
 };
 

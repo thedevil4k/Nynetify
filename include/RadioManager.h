@@ -161,6 +161,7 @@ public:
     }
 
     static std::vector<RadioStation> search_online(const std::string& query);
+    static bool refresh_station_url(int station_id);
 
 private:
     static void load_customs();

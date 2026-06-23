@@ -17,18 +17,9 @@ public:
         // Removing explicit WASAPI to allow MPV to choose best processed path
         // mpv_set_option_string(handle, "ao", "wasapi");     
         mpv_set_option_string(handle, "tls-verify", "no"); // Ignore TLS errors
-        
-        // Use mpv's internal ytdl support (via yt-dlp)
-        mpv_set_option_string(handle, "ytdl", "yes");
-        mpv_set_option_string(handle, "ytdl-format", "bestaudio/best");
-        
-        // Point to the yt-dlp executable
-        const char* ytdl_path = "yt-dlp";
-        std::string script_opts = "ytdl_hook-ytdl_path=" + std::string(ytdl_path);
-        mpv_set_option_string(handle, "script-opts", script_opts.c_str());
-        
-        // Fix for 403 errors: use android client extractor args
-        mpv_set_option_string(handle, "ytdl-raw-options", "extractor-args=youtube:player_client=android");
+
+        // Disable mpv's internal ytdl — we pre-resolve URLs to avoid console flash
+        mpv_set_option_string(handle, "ytdl", "no");
         
         // Request log messages to debug
         mpv_request_log_messages(handle, "info");
@@ -205,6 +196,10 @@ public:
             }
         }
         return status;
+    }
+
+    void set_ytdl(bool enabled) {
+        mpv_set_option_string(handle, "ytdl", enabled ? "yes" : "no");
     }
 
 private:

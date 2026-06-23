@@ -78,6 +78,6 @@ void playlist_delete_click_cb(Fl_Widget* w, void* data);
 void radio_station_cb(Fl_Widget* w, void* data);
 void radio_country_cb(Fl_Widget* w, void* data);
 void radio_add_custom_cb(Fl_Widget* w, void* data);
-void radio_search_online_cb(Fl_Widget* w, void* data);
+
 
 #endif // APPCALLBACKS_H

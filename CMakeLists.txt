@@ -13,6 +13,10 @@ if(WIN32)
     configure_file("${CMAKE_SOURCE_DIR}/assets/Nynetify.ico" "Nynetify.ico" COPYONLY)
 endif()
 
+# Copy asset files (logos) to build directory
+file(COPY "${CMAKE_SOURCE_DIR}/assets/" DESTINATION "${CMAKE_BINARY_DIR}/assets/"
+     FILES_MATCHING PATTERN "*.png" PATTERN "*.ico")
+
 # ── Sources ────────────────────────────────────
 add_executable(Nynetify
     src/main.cpp
