@@ -111,6 +111,7 @@ Fl_Box* sidebarLibHeading = nullptr;
 ModernButton* sidebarLikedBtn = nullptr;
 ModernButton* sidebarNewPlaylistBtn = nullptr;
 ModernButton* sidebarPrefsBtn = nullptr;
+ModernButton* sidebarCreditsBtn = nullptr;
 ModernButton* langToggleBtn = nullptr;
 
 Fl_Box* homeBrowseTitle = nullptr;
@@ -205,14 +206,14 @@ int main(int argc, char **argv) {
     sidebarLikedBtn->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
     sidebarLikedBtn->callback([](Fl_Widget*, void*){ show_favorites_view(); });
 
-    sidebarPlaylistList = new Fl_Hold_Browser(10, 200, 180, 340);
+    sidebarPlaylistList = new Fl_Hold_Browser(10, 200, 180, 310);
     sidebarPlaylistList->box(FL_FLAT_BOX);
     sidebarPlaylistList->color(Theme::SIDEBAR);
     sidebarPlaylistList->textcolor(Theme::TEXT_SECONDARY);
     sidebarPlaylistList->selection_color(Theme::HOVER);
     sidebarPlaylistList->callback(sidebar_playlist_cb);
 
-    sidebarNewPlaylistBtn = new ModernButton(10, 545, 180, 28, lang->create_playlist);
+    sidebarNewPlaylistBtn = new ModernButton(10, 515, 180, 28, lang->create_playlist);
     sidebarNewPlaylistBtn->callback([](Fl_Widget*, void*){
         static CreatePlaylistWindow* win = nullptr;
         if (!win) {
@@ -227,15 +228,19 @@ int main(int argc, char **argv) {
         win->show();
     });
 
-    sidebarRadioBtn = new ModernButton(10, 578, 180, 24, lang->radio);
+    sidebarRadioBtn = new ModernButton(10, 548, 180, 24, lang->radio);
     sidebarRadioBtn->color(Theme::HOVER);
     sidebarRadioBtn->labelsize(12);
     sidebarRadioBtn->callback([](Fl_Widget*, void*){ show_radio_view(); });
 
-    langToggleBtn = new ModernButton(10, 606, 180, 24, lang->language_btn);
+    langToggleBtn = new ModernButton(10, 577, 180, 24, lang->language_btn);
     langToggleBtn->color(Theme::HOVER);
     langToggleBtn->labelsize(12);
     langToggleBtn->callback(lang_btn_cb);
+
+    sidebarCreditsBtn = new ModernButton(10, 606, 180, 24, lang->credits);
+    sidebarCreditsBtn->labelsize(12);
+    sidebarCreditsBtn->callback([](Fl_Widget*, void*){ show_credits_view(); });
 
     sidebarPrefsBtn = new ModernButton(10, 634, 180, 24, lang->settings);
     sidebarPrefsBtn->labelsize(12);

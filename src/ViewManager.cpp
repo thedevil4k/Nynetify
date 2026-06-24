@@ -420,6 +420,59 @@ void region_detected_cb(void* data) {
     delete region;
 }
 
+/* ================================================================
+ * Credits view
+ * ================================================================ */
+void show_credits_view() {
+    auto* win = new Fl_Double_Window(380, 280, lang->credits);
+    win->color(Theme::SIDEBAR);
+    if (Fl::first_window())
+        win->position(Fl::first_window()->x() + (Fl::first_window()->w() - win->w()) / 2,
+                      Fl::first_window()->y() + (Fl::first_window()->h() - win->h()) / 2);
+
+    auto* titleLabel = new Fl_Box(20, 20, 340, 30, "\xe2\x99\xab Nynetify v1.0");
+    titleLabel->labelcolor(Theme::ACCENT);
+    titleLabel->labelsize(22);
+    titleLabel->labelfont(FL_HELVETICA_BOLD);
+    titleLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    auto* authorLabel = new Fl_Box(20, 60, 340, 20, "Author: thedevil4k");
+    authorLabel->labelcolor(Theme::TEXT_PRIMARY);
+    authorLabel->labelsize(13);
+    authorLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    auto* repoLabel = new Fl_Box(20, 85, 340, 20, "GitHub: github.com/thedevil4k/Nynetify");
+    repoLabel->labelcolor(Theme::TEXT_SECONDARY);
+    repoLabel->labelsize(11);
+    repoLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    auto* licenseLabel = new Fl_Box(20, 120, 340, 20, "License: MIT");
+    licenseLabel->labelcolor(Theme::TEXT_PRIMARY);
+    licenseLabel->labelsize(13);
+    licenseLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    auto* libsTitle = new Fl_Box(20, 155, 340, 20, "Third-party Libraries:");
+    libsTitle->labelcolor(Theme::TEXT_SECONDARY);
+    libsTitle->labelsize(12);
+    libsTitle->labelfont(FL_HELVETICA_BOLD);
+    libsTitle->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    auto* libsLabel = new Fl_Box(20, 178, 340, 80,
+        "  \xe2\x80\xa2 FLTK (GUI Toolkit)\n"
+        "  \xe2\x80\xa2 libmpv (Audio Player)\n"
+        "  \xe2\x80\xa2 libcurl (HTTP Requests)\n"
+        "  \xe2\x80\xa2 yt-dlp (YouTube Extraction)\n"
+        "  \xe2\x80\xa2 nlohmann/json (JSON Parser)");
+    libsLabel->labelcolor(Theme::TEXT_SECONDARY);
+    libsLabel->labelsize(11);
+    libsLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+    win->end();
+    win->set_non_modal();
+    win->callback([](Fl_Widget* w, void*) { w->hide(); });
+    win->show();
+}
+
 void detect_region() {
     std::cout << "[UI] Detecting region..." << std::endl;
     std::thread([]() {

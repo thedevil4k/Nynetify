@@ -195,6 +195,7 @@ void ResultsBrowser::delete_entry_cb(Fl_Widget* w, void* data) {
  * ================================================================ */
 CreatePlaylistWindow::CreatePlaylistWindow() : Fl_Double_Window(300, 180, lang->new_playlist_title) {
     color(Theme::SIDEBAR);
+
     nameIn = new Fl_Input(100, 25, 180, 25, lang->name_label);
     nameIn->textcolor(Theme::TEXT_PRIMARY);
     nameIn->color(Theme::HOVER);
@@ -249,6 +250,7 @@ PlaylistSelectionWindow::PlaylistSelectionWindow(const std::string& video_id)
 
     auto* btn = new ModernButton(100, 300, 100, 35, lang->add_btn);
     btn->callback(add_cb, this);
+
     end();
 }
 
@@ -271,7 +273,7 @@ void PlaylistSelectionWindow::add_cb(Fl_Widget*, void* data) {
  * Styled message / choice dialogs
  * ================================================================ */
 void show_styled_message(const char* msg) {
-    Fl_Double_Window win(360, 120, " ");
+    Fl_Double_Window win(360, 120, lang->window_title);
     win.color(Theme::SIDEBAR);
     win.set_modal();
 
@@ -295,7 +297,7 @@ void show_styled_message(const char* msg) {
 
 bool show_styled_choice(const char* msg) {
     bool result = false;
-    Fl_Double_Window win(360, 140, " ");
+    Fl_Double_Window win(360, 140, lang->window_title);
     win.color(Theme::SIDEBAR);
     win.set_modal();
 

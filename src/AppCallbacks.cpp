@@ -969,12 +969,6 @@ void radio_add_custom_cb(Fl_Widget* w, void* data) {
         win->position(Fl::first_window()->x() + (Fl::first_window()->w() - win->w()) / 2,
                       Fl::first_window()->y() + (Fl::first_window()->h() - win->h()) / 2);
 
-    auto* closeBtn = new ModernButton(370, 5, 25, 25, "\xc3\x97");
-    closeBtn->color(Theme::HOVER);
-    closeBtn->labelcolor(Theme::TEXT_SECONDARY);
-    closeBtn->labelsize(16);
-    closeBtn->callback([](Fl_Widget* btn, void*) { btn->parent()->hide(); });
-
     auto* nameLabel = new Fl_Box(20, 20, 100, 25, lang->radio_custom_name);
     nameLabel->labelcolor(Theme::TEXT_PRIMARY);
     nameLabel->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
@@ -1008,7 +1002,7 @@ void radio_add_custom_cb(Fl_Widget* w, void* data) {
     }, new Fl_Input*[2]{nameInput, urlInput});
 
     win->end();
-    win->set_modal();
+    win->set_non_modal();
     win->show();
 }
 

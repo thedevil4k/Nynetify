@@ -10,6 +10,7 @@ struct Lang {
     const char* create_playlist;
     const char* settings;
     const char* language_btn;
+    const char* credits;
 
     // Home
     const char* browse_categories;
@@ -136,6 +137,7 @@ inline Lang LANG_EN = {
     "+ Create Playlist",
     "Settings",
     "ES",
+    "Credits",
     // Home
     "Browse Categories",
     {"Classic Rock", "Hip Hop", "Synthwave", "Lo-fi Beats", "Top Hits", "Liked Songs"},
@@ -248,6 +250,7 @@ inline Lang LANG_ES = {
     "+ Crear lista",
     "Ajustes",
     "EN",
+    "Creditos",
     // Home
     "Explorar categorias",
     {"Rock Clasico", "Hip Hop", "Synthwave", "Lo-fi Beats", "Exitos", "Me gusta"},

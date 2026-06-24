@@ -104,6 +104,7 @@ extern Fl_Box* sidebarLibHeading;
 extern ModernButton* sidebarLikedBtn;
 extern ModernButton* sidebarNewPlaylistBtn;
 extern ModernButton* sidebarPrefsBtn;
+extern ModernButton* sidebarCreditsBtn;
 extern ModernButton* langToggleBtn;
 
 // Home view widgets
