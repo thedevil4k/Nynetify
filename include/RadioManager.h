@@ -17,13 +17,8 @@ public:
     static inline bool radio_mode = false;
     static inline int current_radio_index = -1;
 
-    static void init(const std::string& country_code) {
-        user_country_code = country_code;
-        stations = bundled_stations;
-        load_customs();
-        load_favs();
-        sort_by_country();
-    }
+    static void init(const std::string& country_code);
+    static void save_stations();
 
     static void sort_by_country() {
         std::stable_sort(stations.begin(), stations.end(),
@@ -88,32 +83,8 @@ public:
     }
 
     static void add_custom(const std::string& name, const std::string& url,
-                           const std::string& genre, const std::string& country_code) {
-        RadioStation s;
-        s.id = 10000 + (int)stations.size();
-        s.name = name;
-        s.stream_url = url;
-        s.genre = genre;
-        s.country_code = country_code;
-        s.country_name = country_code;
-        s.codec = "MP3";
-        s.bitrate = 128;
-        s.is_custom = true;
-        stations.push_back(s);
-        save_customs();
-    }
-
-    static void remove_custom(int station_id) {
-        for (size_t i = 0; i < stations.size(); i++) {
-            if (stations[i].id == station_id && stations[i].is_custom) {
-                stations.erase(stations.begin() + i);
-                break;
-            }
-        }
-        fav_cache.erase(station_id);
-        save_customs();
-        save_favs();
-    }
+                           const std::string& genre, const std::string& country_code);
+    static void remove_custom(int station_id);
 
     static void play_radio(int station_index) {
         if (station_index < 0 || station_index >= (int)stations.size()) return;
@@ -132,7 +103,6 @@ public:
             }
         }
         int next = (cur_idx + 1) % (int)filtered_list.size();
-        // Find the global index
         for (int i = 0; i < (int)stations.size(); i++) {
             if (stations[i].id == filtered_list[next].id) {
                 current_radio_index = i;
@@ -164,8 +134,6 @@ public:
     static bool refresh_station_url(int station_id);
 
 private:
-    static void load_customs();
-    static void save_customs();
     static void load_favs();
     static void save_favs();
 };

@@ -8,6 +8,9 @@
 #include <cctype>
 #include "RadioManager.h"
 #include "Spawn.h"
+#include "nlohmann/json.hpp"
+
+using json = nlohmann::json;
 
 static std::string url_encode(const std::string& value) {
     std::ostringstream escaped;
@@ -34,57 +37,120 @@ static std::string url_encode(const std::string& value) {
 #endif
 #endif
 
-void RadioManager::load_customs() {
-    std::string path = "RADIO" NYN_PATH_SEP "custom.txt";
-    if (!std::filesystem::exists(path)) return;
-    std::ifstream ifs(path);
-    std::string line;
-    int max_id = (int)stations.size();
-    while (std::getline(ifs, line)) {
-        std::stringstream ss(line);
-        std::string name, url, genre, country;
-        std::getline(ss, name, '|');
-        std::getline(ss, url, '|');
-        std::getline(ss, genre, '|');
-        std::getline(ss, country, '|');
-        if (name.empty() || url.empty()) continue;
-        RadioStation s;
-        s.id = max_id++;
-        s.name = name;
-        s.stream_url = url;
-        s.genre = genre.empty() ? "Other" : genre;
-        s.country_code = country.empty() ? "INT" : country;
-        s.country_name = s.country_code;
-        s.codec = "MP3";
-        s.bitrate = 128;
-        s.is_custom = true;
-        stations.push_back(s);
+static std::string stations_path() { return "stations.json"; }
+static std::string favs_path()     { return "radio_favs.json"; }
+
+void RadioManager::init(const std::string& country_code) {
+    user_country_code = country_code;
+
+    // Load stations from JSON
+    std::string sp = stations_path();
+    if (!std::filesystem::exists(sp)) {
+        std::cerr << "[RadioManager] ERROR: " << sp << " not found. No stations loaded." << std::endl;
+        return;
     }
+    try {
+        std::ifstream ifs(sp);
+        json j;
+        ifs >> j;
+        stations.clear();
+        for (const auto& obj : j) {
+            RadioStation s;
+            s.id           = obj.value("id", 0);
+            s.name         = obj.value("name", "");
+            s.stream_url   = obj.value("stream_url", "");
+            s.genre        = obj.value("genre", "Other");
+            s.country_code = obj.value("country_code", "INT");
+            s.country_name = obj.value("country_name", "");
+            s.codec        = obj.value("codec", "MP3");
+            s.bitrate      = obj.value("bitrate", 128);
+            s.is_custom    = obj.value("is_custom", false);
+            s.logo         = obj.value("logo", "");
+            stations.push_back(s);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[RadioManager] ERROR parsing " << sp << ": " << e.what() << std::endl;
+        return;
+    }
+
+    load_favs();
+    sort_by_country();
 }
 
-void RadioManager::save_customs() {
-    std::filesystem::create_directories("RADIO");
-    std::ofstream ofs("RADIO" NYN_PATH_SEP "custom.txt");
+void RadioManager::save_stations() {
+    json j = json::array();
     for (const auto& s : stations) {
-        if (!s.is_custom) continue;
-        ofs << s.name << "|" << s.stream_url << "|"
-            << s.genre << "|" << s.country_code << "\n";
+        j.push_back({
+            {"id",           s.id},
+            {"name",         s.name},
+            {"stream_url",   s.stream_url},
+            {"genre",        s.genre},
+            {"country_code", s.country_code},
+            {"country_name", s.country_name},
+            {"codec",        s.codec},
+            {"bitrate",      s.bitrate},
+            {"is_custom",    s.is_custom},
+            {"logo",         s.logo}
+        });
     }
+    std::ofstream ofs(stations_path());
+    ofs << j.dump(2) << std::endl;
+}
+
+void RadioManager::add_custom(const std::string& name, const std::string& url,
+                              const std::string& genre, const std::string& country_code) {
+    int max_id = 0;
+    for (const auto& s : stations)
+        if (s.id > max_id) max_id = s.id;
+
+    RadioStation s;
+    s.id = max_id + 1;
+    s.name = name;
+    s.stream_url = url;
+    s.genre = genre.empty() ? "Other" : genre;
+    s.country_code = country_code.empty() ? "INT" : country_code;
+    s.country_name = s.country_code;
+    s.codec = "MP3";
+    s.bitrate = 128;
+    s.is_custom = true;
+    stations.push_back(s);
+    save_stations();
+}
+
+void RadioManager::remove_custom(int station_id) {
+    for (size_t i = 0; i < stations.size(); i++) {
+        if (stations[i].id == station_id && stations[i].is_custom) {
+            stations.erase(stations.begin() + i);
+            break;
+        }
+    }
+    fav_cache.erase(station_id);
+    save_stations();
+    save_favs();
 }
 
 void RadioManager::load_favs() {
     fav_cache.clear();
-    std::string path = "RADIO" NYN_PATH_SEP "favs.txt";
-    if (!std::filesystem::exists(path)) return;
-    std::ifstream ifs(path);
-    int id;
-    while (ifs >> id) fav_cache.insert(id);
+    std::string fp = favs_path();
+    if (!std::filesystem::exists(fp)) return;
+    try {
+        std::ifstream ifs(fp);
+        json j;
+        ifs >> j;
+        if (j.contains("ids") && j["ids"].is_array()) {
+            for (const auto& id : j["ids"]) {
+                if (id.is_number_integer()) fav_cache.insert(id.get<int>());
+            }
+        }
+    } catch (...) {}
 }
 
 void RadioManager::save_favs() {
-    std::filesystem::create_directories("RADIO");
-    std::ofstream ofs("RADIO" NYN_PATH_SEP "favs.txt");
-    for (int id : fav_cache) ofs << id << "\n";
+    json j;
+    j["ids"] = json::array();
+    for (int id : fav_cache) j["ids"].push_back(id);
+    std::ofstream ofs(favs_path());
+    ofs << j.dump(2) << std::endl;
 }
 
 std::vector<RadioStation> RadioManager::search_online(const std::string& query) {
@@ -99,74 +165,31 @@ std::vector<RadioStation> RadioManager::search_online(const std::string& query) 
 
     try {
         std::ifstream ifs(temp_file);
-        std::string json;
-        std::getline(ifs, json, '\0');
-        ifs.close();
+        json j;
+        ifs >> j;
         std::filesystem::remove(temp_file);
 
-        // Rough JSON parsing — find station objects
-        size_t pos = 0;
         int next_id = 20000;
-        while ((pos = json.find("\"name\"", pos)) != std::string::npos) {
-            size_t name_start = json.find('"', pos + 7);
-            if (name_start == std::string::npos) break;
-            size_t name_end = json.find('"', name_start + 1);
-            if (name_end == std::string::npos) break;
-            std::string name = json.substr(name_start + 1, name_end - name_start - 1);
-
-            size_t url_pos = json.find("\"url\"", name_end);
-            if (url_pos == std::string::npos || url_pos > pos + 500) { pos = name_end; continue; }
-            size_t url_start = json.find('"', url_pos + 6);
-            if (url_start == std::string::npos) break;
-            size_t url_end = json.find('"', url_start + 1);
-            if (url_end == std::string::npos) break;
-            std::string stream = json.substr(url_start + 1, url_end - url_start - 1);
-            for (auto& c : stream) if (c == '\\') { c = '/'; break; } // unescape
-
-            // Find genre
-            std::string genre = "Other";
-            size_t genre_pos = json.find("\"tags\"", url_end);
-            if (genre_pos != std::string::npos && genre_pos < url_end + 200) {
-                size_t gs = json.find('"', genre_pos + 7);
-                if (gs != std::string::npos) {
-                    size_t ge = json.find('"', gs + 1);
-                    if (ge != std::string::npos) {
-                        std::string raw = json.substr(gs + 1, ge - gs - 1);
-                        if (!raw.empty()) {
-                            // Take first tag
-                            size_t comma = raw.find(',');
-                            genre = (comma == std::string::npos) ? raw : raw.substr(0, comma);
-                        }
-                    }
+        if (j.is_array()) {
+            for (const auto& obj : j) {
+                RadioStation s;
+                s.id = next_id++;
+                s.name         = obj.value("name", "");
+                s.stream_url   = obj.value("url", "");
+                s.genre        = obj.value("tags", "Other");
+                s.country_code = obj.value("countrycode", "INT");
+                s.country_name = s.country_code;
+                s.codec        = obj.value("codec", "MP3");
+                s.bitrate      = obj.value("bitrate", 128);
+                s.is_custom    = true;
+                // Take first tag as genre
+                if (!s.genre.empty()) {
+                    size_t comma = s.genre.find(',');
+                    if (comma != std::string::npos) s.genre = s.genre.substr(0, comma);
                 }
+                results.push_back(s);
+                if (results.size() >= 50) break;
             }
-
-            // Find country code
-            std::string country = "INT";
-            size_t cc_pos = json.find("\"countrycode\"", url_end);
-            if (cc_pos != std::string::npos && cc_pos < url_end + 200) {
-                size_t cs = json.find('"', cc_pos + 14);
-                if (cs != std::string::npos) {
-                    size_t ce = json.find('"', cs + 1);
-                    if (ce != std::string::npos)
-                        country = json.substr(cs + 1, ce - cs - 1);
-                }
-            }
-
-            RadioStation s;
-            s.id = next_id++;
-            s.name = name;
-            s.stream_url = stream;
-            s.genre = genre;
-            s.country_code = country;
-            s.country_name = country;
-            s.codec = "MP3";
-            s.bitrate = 128;
-            s.is_custom = true;
-            results.push_back(s);
-            if (results.size() >= 50) break;
-
-            pos = url_end;
         }
     } catch (...) {
         std::filesystem::remove(temp_file);
@@ -177,9 +200,8 @@ std::vector<RadioStation> RadioManager::search_online(const std::string& query) 
 bool RadioManager::refresh_station_url(int station_id) {
     if (station_id < 0 || station_id >= (int)stations.size()) return false;
     RadioStation& st = stations[station_id];
-    if (st.is_custom) return false; // don't refresh custom stations
+    if (st.is_custom) return false;
 
-    // Query radio-browser.info by station name and country code
     std::string safe_name;
     for (char c : st.name) {
         if (c == ' ') safe_name += "%20";
@@ -201,63 +223,29 @@ bool RadioManager::refresh_station_url(int station_id) {
 
     try {
         std::ifstream ifs(temp_file);
-        std::string json;
-        std::getline(ifs, json, '\0');
-        ifs.close();
+        json j;
+        ifs >> j;
         std::filesystem::remove(temp_file);
 
-        size_t pos = 0;
-        while ((pos = json.find("\"name\"", pos)) != std::string::npos) {
-            size_t name_start = json.find('"', pos + 7);
-            if (name_start == std::string::npos) break;
-            size_t name_end = json.find('"', name_start + 1);
-            if (name_end == std::string::npos) break;
-            std::string name = json.substr(name_start + 1, name_end - name_start - 1);
+        if (j.is_array()) {
+            for (const auto& obj : j) {
+                std::string name = obj.value("name", "");
+                std::string stream = obj.value("url", "");
+                int bitrate = obj.value("bitrate", 0);
 
-            // Skip if name doesn't roughly match
-            std::string st_name_lower = st.name;
-            std::string api_name_lower = name;
-            for (auto& c : st_name_lower) c = (char)tolower(c);
-            for (auto& c : api_name_lower) c = (char)tolower(c);
-            if (api_name_lower.find(st_name_lower) == std::string::npos &&
-                st_name_lower.find(api_name_lower) == std::string::npos) {
-                pos = name_end;
-                continue;
-            }
+                std::string st_lower = st.name;
+                std::string api_lower = name;
+                for (auto& c : st_lower) c = (char)tolower(c);
+                for (auto& c : api_lower) c = (char)tolower(c);
+                if (api_lower.find(st_lower) == std::string::npos &&
+                    st_lower.find(api_lower) == std::string::npos) continue;
 
-            size_t url_pos = json.find("\"url\"", name_end);
-            if (url_pos == std::string::npos || url_pos > pos + 800) { pos = name_end; continue; }
-            size_t url_start = json.find('"', url_pos + 6);
-            if (url_start == std::string::npos) break;
-            size_t url_end = json.find('"', url_start + 1);
-            if (url_end == std::string::npos) break;
-            std::string stream = json.substr(url_start + 1, url_end - url_start - 1);
-            for (auto& c : stream) if (c == '\\') { c = '/'; break; }
-
-            // Find bitrate
-            int bitrate = 0;
-            size_t br_pos = json.find("\"bitrate\"", url_end);
-            if (br_pos != std::string::npos && br_pos < url_end + 300) {
-                size_t colon = json.find(':', br_pos + 9);
-                if (colon != std::string::npos) {
-                    size_t end = json.find(',', colon);
-                    if (end == std::string::npos) end = json.find('}', colon);
-                    if (end != std::string::npos) {
-                        std::string val = json.substr(colon + 1, end - colon - 1);
-                        // Trim spaces
-                        while (!val.empty() && val[0] == ' ') val.erase(0, 1);
-                        bitrate = atoi(val.c_str());
-                    }
+                if (bitrate > best_bitrate) {
+                    best_bitrate = bitrate;
+                    best_url = stream;
+                    found = true;
                 }
             }
-
-            // Pick the best bitrate URL
-            if (bitrate > best_bitrate) {
-                best_bitrate = bitrate;
-                best_url = stream;
-                found = true;
-            }
-            pos = url_end;
         }
     } catch (...) {
         std::filesystem::remove(temp_file);

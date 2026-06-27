@@ -3,6 +3,15 @@
 
 #include <string>
 #include <vector>
+#include <fstream>
+#include <cstdlib>
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>
+#else
+#include <unistd.h>
+#include <sys/wait.h>
+#endif
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Input.H>
@@ -230,5 +239,66 @@ void radio_country_cb(Fl_Widget* w, void* data);
 void radio_add_custom_cb(Fl_Widget* w, void* data);
 
 void radio_refresh_url_cb(Fl_Widget* w, void* data);
+
+// Debug log
+void initDebugLog();
+void openDebugLogViewer();
+
+// Debug log implementation
+inline std::string getDebugLogPath() {
+#ifdef _WIN32
+    const char* temp = std::getenv("TEMP");
+    if (!temp) temp = std::getenv("TMP");
+    if (!temp) temp = ".";
+    return std::string(temp) + "\\nynetify_debug.log";
+#else
+    return "/tmp/nynetify_debug.log";
+#endif
+}
+
+inline void initDebugLog() {
+    if (!settings.debugMode) return;
+    static std::ofstream logFile;
+    std::string path = getDebugLogPath();
+    logFile.open(path, std::ios::app | std::ios::out);
+    if (logFile.is_open()) {
+        std::cout.rdbuf(logFile.rdbuf());
+        std::cerr.rdbuf(logFile.rdbuf());
+        std::cout << "\n=== Nynetify Debug Log Started ===" << std::endl;
+    }
+}
+
+inline void openDebugLogViewer() {
+    std::string path = getDebugLogPath();
+#ifdef _WIN32
+    // Non-blocking launch via ShellExecuteEx
+    std::string cmd = "powershell -c \"Get-Content '" + path + "' -Wait\"";
+    SHELLEXECUTEINFOA sei = { sizeof(sei) };
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+    sei.lpVerb = "open";
+    sei.lpFile = "cmd.exe";
+    sei.lpParameters = ("/k " + cmd).c_str();
+    sei.nShow = SW_SHOW;
+    ShellExecuteExA(&sei);
+#else
+    // Non-blocking via fork+exec
+    const char* terms[] = {
+        "gnome-terminal", "konsole", "xterm", "alacritty", "kitty", "tilix", "xfce4-terminal", nullptr
+    };
+    for (int i = 0; terms[i]; ++i) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            // child
+            execlp(terms[i], terms[i], "--", "tail", "-f", path.c_str(), nullptr);
+            _exit(1);
+        } else if (pid > 0) {
+            return; // parent continues
+        }
+    }
+    // fallback: xdg-open
+    pid_t pid = fork();
+    if (pid == 0) { execlp("xdg-open", "xdg-open", path.c_str(), nullptr); _exit(1); }
+#endif
+}
 
 #endif // GLOBALS_H

@@ -15,11 +15,11 @@
 #include "Spawn.h"
 
 static const char* YT_DLP = "yt-dlp";
-static const char* YT_DLP_FAST = " --extractor-args \"youtube:skip=hls,dash;player_client=android\" --socket-timeout 5 --retries 1";
+static const char* YT_DLP_FAST = " --ignore-config --no-warnings --socket-timeout 5 --retries 1 --no-update";
 #ifdef _WIN32
-static const char* NYN_NULL_REDIRECT = " 2>NUL";
+static const char* NYN_NULL_REDIRECT = "";
 #else
-static const char* NYN_NULL_REDIRECT = " 2>/dev/null";
+static const char* NYN_NULL_REDIRECT = " 2>&1";
 #endif
 
 #include "SearchResult.h"
@@ -266,7 +266,11 @@ public:
     static std::string resolve_audio_url(const std::string& video_id, bool dbg = false) {
         std::string cmd = std::string(YT_DLP) + std::string(YT_DLP_FAST)
             + " -g -f bestaudio \"https://www.youtube.com/watch?v=" + video_id + "\"" + NYN_NULL_REDIRECT;
-        return run_hidden(cmd, dbg, true);
+        std::string url = run_hidden(cmd, dbg, true);
+        while (!url.empty() && (url.back() == '\r' || url.back() == '\n' || url.back() == ' ')) {
+            url.pop_back();
+        }
+        return url;
     }
 
     static std::string get_thumbnail_url(const std::string& video_id) {

@@ -93,6 +93,7 @@ struct Lang {
     const char* batch_label;
     const char* enable_antialiasing;
     const char* enable_debug_mode;
+    const char* open_logs_btn;
     const char* search_provider_label;
     const char* provider_invidious;
     const char* provider_ytdlp;
@@ -211,6 +212,7 @@ inline Lang LANG_EN = {
     "Batch: +%d per scroll",
     " Enable Antialiasing",
     " Enable Debug Mode",
+    " Open Logs",
     " Search Provider",
     "Invidious (Fast, Native)",
     "yt-dlp (Compat, Slow)",
@@ -324,6 +326,7 @@ inline Lang LANG_ES = {
     "Lote: +%d por scroll",
     " Activar Antialiasing",
     " Modo Debug",
+    " Abrir logs",
     " Proveedor de Busqueda",
     "Invidious (Rapido, Nativo)",
     "yt-dlp (Compatible, Lento)",

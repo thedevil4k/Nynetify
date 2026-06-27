@@ -14,6 +14,8 @@ public:
         
         // Settings for integrated audio playback
         mpv_set_option_string(handle, "vo", "null");       // No video
+        mpv_set_option_string(handle, "vid", "no");         // Disable video track entirely
+        mpv_set_option_string(handle, "ytdl-format", "bestaudio/audio_only"); // Choose audio-only for ytdl (Twitch, etc.)
         // Removing explicit WASAPI to allow MPV to choose best processed path
         // mpv_set_option_string(handle, "ao", "wasapi");     
         mpv_set_option_string(handle, "tls-verify", "no"); // Ignore TLS errors
@@ -50,6 +52,7 @@ public:
         if (err < 0) {
             std::cerr << "[PLAYER] Error loading file: " << mpv_error_string(err) << std::endl;
         }
+        resume();
     }
 
     void pause() {

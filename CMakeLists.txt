@@ -17,6 +17,9 @@ endif()
 file(COPY "${CMAKE_SOURCE_DIR}/assets/" DESTINATION "${CMAKE_BINARY_DIR}/assets/"
      FILES_MATCHING PATTERN "*.png" PATTERN "*.ico")
 
+# Copy stations.json to build directory
+configure_file("${CMAKE_SOURCE_DIR}/assets/stations.json" "stations.json" COPYONLY)
+
 # ── Sources ────────────────────────────────────
 add_executable(Nynetify
     src/main.cpp

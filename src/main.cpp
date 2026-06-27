@@ -173,9 +173,9 @@ int main(int argc, char **argv) {
     window->color(Theme::BACKGROUND);
     fl_register_images();
 
-    // Set taskbar icon
-    Fl_PNG_Image app_icon("Nynetify.png");
-    window->icon(&app_icon);
+    // Set taskbar icon for all windows
+    static Fl_PNG_Image app_icon(get_asset_path("Nynetify.png").c_str());
+    Fl_Window::default_icon(&app_icon);
 
     /* ── 1. LEFT SIDEBAR (0–200) ──────────────────── */
     auto* sidebarBox = new Fl_Box(0, 0, 200, 660);
@@ -556,6 +556,7 @@ int main(int argc, char **argv) {
     RadioManager::init(user_region);
     YoutubeService::setDebugMode(settings.debugMode);
     YoutubeService::setUseInvidious(settings.searchProvider == AppSettings::SearchProvider::Invidious);
+    initDebugLog();
 
     Fl::add_timeout(0.15, update_ui_cb);
     Fl::add_timeout(0.5, update_status_bar_cb);
