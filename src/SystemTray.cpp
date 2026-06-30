@@ -5,6 +5,8 @@
 
 #include <cstring>
 #include <new>
+#include <string>
+#include <filesystem>
 
 #include "SystemTray.h"
 #include <FL/platform.H>
@@ -47,7 +49,13 @@ void SystemTray::create_icon() {
     pnid->uID = 1;
     pnid->uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     pnid->uCallbackMessage = WM_TRAY_NOTIFY;
-    pnid->hIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(1));
+    pnid->hIcon = (HICON)LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(1));
+    if (!pnid->hIcon) {
+        char exePath[MAX_PATH];
+        GetModuleFileNameA(nullptr, exePath, MAX_PATH);
+        std::string icoPath = std::filesystem::path(exePath).parent_path().string() + "\\assets\\Nynetify.ico";
+        pnid->hIcon = (HICON)LoadImageA(nullptr, icoPath.c_str(), IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+    }
     strcpy_s(pnid->szTip, "Nynetify");
     pnid->uVersion = NOTIFYICON_VERSION_4;
 

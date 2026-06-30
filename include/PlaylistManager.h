@@ -17,6 +17,7 @@ class PlaylistManager {
 public:
     static inline std::unordered_set<std::string> fav_cache;
     static inline std::unordered_set<std::string> twitch_fav_cache;
+    static inline std::unordered_set<std::string> soundcloud_fav_cache;
 
     // ── YouTube Favorites ─────────────────────────
     static void load_fav_cache() {
@@ -51,6 +52,7 @@ public:
     static void ensure_directories() {
         load_fav_cache();
         load_twitch_fav_cache();
+        load_soundcloud_fav_cache();
     }
 
     static void add_to_favorites(const std::string& video_id) {
@@ -216,6 +218,40 @@ public:
         return std::vector<std::string>(twitch_fav_cache.begin(), twitch_fav_cache.end());
     }
 
+    // ── SoundCloud Favorites ──────────────────────
+    static void load_soundcloud_fav_cache() {
+        soundcloud_fav_cache.clear();
+        std::string fp = "soundcloud_favs.json";
+        if (!fs::exists(fp)) return;
+        try {
+            std::ifstream ifs(fp);
+            json j;
+            ifs >> j;
+            if (j.contains("tracks") && j["tracks"].is_array()) {
+                for (const auto& t : j["tracks"])
+                    if (t.is_string()) soundcloud_fav_cache.insert(t.get<std::string>());
+            }
+        } catch (...) {}
+    }
+
+    static void add_soundcloud_favorite(const std::string& track_url) {
+        soundcloud_fav_cache.insert(track_url);
+        save_soundcloud_favs();
+    }
+
+    static void remove_soundcloud_favorite(const std::string& track_url) {
+        soundcloud_fav_cache.erase(track_url);
+        save_soundcloud_favs();
+    }
+
+    static bool is_soundcloud_favorite(const std::string& track_url) {
+        return soundcloud_fav_cache.contains(track_url);
+    }
+
+    static std::vector<std::string> get_soundcloud_favorites() {
+        return std::vector<std::string>(soundcloud_fav_cache.begin(), soundcloud_fav_cache.end());
+    }
+
 private:
     static json load_json_file(const std::string& path) {
         if (!fs::exists(path)) return json::object();
@@ -238,6 +274,14 @@ private:
         j["channels"] = json::array();
         for (const auto& c : twitch_fav_cache) j["channels"].push_back(c);
         std::ofstream ofs("twitch_favs.json");
+        ofs << j.dump(2) << std::endl;
+    }
+
+    static void save_soundcloud_favs() {
+        json j;
+        j["tracks"] = json::array();
+        for (const auto& t : soundcloud_fav_cache) j["tracks"].push_back(t);
+        std::ofstream ofs("soundcloud_favs.json");
         ofs << j.dump(2) << std::endl;
     }
 };

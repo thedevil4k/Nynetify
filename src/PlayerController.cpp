@@ -48,12 +48,15 @@ void play_index(int index) {
 
     /* Heart state */
     if (heartBtn) {
-        heartBtn->active = PlaylistManager::is_favorite(video_id);
+        if (play_queue[index].is_soundcloud)
+            heartBtn->active = PlaylistManager::is_soundcloud_favorite(video_id);
+        else
+            heartBtn->active = PlaylistManager::is_favorite(video_id);
         heartBtn->redraw();
     }
 
     /* Load cover art (async — see ViewManager) */
-    if (!play_queue[index].is_twitch)
+    if (!play_queue[index].is_twitch && !play_queue[index].is_soundcloud)
         update_cover_art(video_id);
 
     /* Start playback — pre-resolve URLs to avoid console flash from mpv's ytdl */
@@ -65,6 +68,13 @@ void play_index(int index) {
             stream_url = "https://www.twitch.tv/" + video_id;
         else
             stream_url = "https://www.twitch.tv/videos/" + video_id;
+    } else if (play_queue[index].is_soundcloud) {
+        /* SoundCloud: pre-resolve URL using yt-dlp, like YouTube */
+        player->set_ytdl(false);
+        stream_url = SoundCloudClient::resolve_audio_url(video_id);
+        if (stream_url.empty()) {
+            std::cerr << "[ERROR] Could not resolve SoundCloud URL: " << video_id << std::endl;
+        }
     } else {
         /* Pre-resolve YouTube URL using hidden yt-dlp, then play direct */
         player->set_ytdl(false);

@@ -97,8 +97,9 @@ void play_selected_cb(Fl_Widget* w, void* data) {
         show_youtube_playlist_view(video_id, title, author);
         return;
     }
-    /* Twitch channels play directly — don't navigate to channel view */
-    if (last_results[line - 1].is_channel && !last_results[line - 1].is_twitch) {
+    /* Twitch/SoundCloud channels play directly — don't navigate to channel view */
+    if (last_results[line - 1].is_channel && !last_results[line - 1].is_twitch
+        && !last_results[line - 1].is_soundcloud) {
         show_channel_view(video_id, title);
         return;
     }
@@ -179,7 +180,15 @@ void heart_btn_cb(Fl_Widget* w, void* data) {
     }
     if (current_queue_index < 0 || current_queue_index >= (int)play_queue.size()) return;
     std::string video_id = play_queue[current_queue_index].video_id;
-    if (PlaylistManager::is_favorite(video_id)) {
+    if (play_queue[current_queue_index].is_soundcloud) {
+        if (PlaylistManager::is_soundcloud_favorite(video_id)) {
+            PlaylistManager::remove_soundcloud_favorite(video_id);
+            if (heartBtn) heartBtn->active = false;
+        } else {
+            PlaylistManager::add_soundcloud_favorite(video_id);
+            if (heartBtn) heartBtn->active = true;
+        }
+    } else if (PlaylistManager::is_favorite(video_id)) {
         PlaylistManager::remove_from_favorites(video_id);
         if (heartBtn) heartBtn->active = false;
     } else {
@@ -201,8 +210,10 @@ void yt_toggle_cb(Fl_Widget* w, void* data) {
     save_settings();
     if (ytToggleBtn)  ytToggleBtn->color(Theme::ACCENT);
     if (twitchToggleBtn) twitchToggleBtn->color(Theme::HOVER);
+    if (soundcloudToggleBtn) soundcloudToggleBtn->color(Theme::HOVER);
     if (ytToggleBtn)  ytToggleBtn->redraw();
     if (twitchToggleBtn) twitchToggleBtn->redraw();
+    if (soundcloudToggleBtn) soundcloudToggleBtn->redraw();
     /* Re-run search if there's a query */
     if (searchBar && searchBar->value()[0] != '\0')
         search_cb(searchBar, resultsBrowser);
@@ -214,9 +225,25 @@ void twitch_toggle_cb(Fl_Widget* w, void* data) {
     save_settings();
     if (ytToggleBtn)  ytToggleBtn->color(Theme::HOVER);
     if (twitchToggleBtn) twitchToggleBtn->color(Theme::ACCENT);
+    if (soundcloudToggleBtn) soundcloudToggleBtn->color(Theme::HOVER);
     if (ytToggleBtn)  ytToggleBtn->redraw();
     if (twitchToggleBtn) twitchToggleBtn->redraw();
+    if (soundcloudToggleBtn) soundcloudToggleBtn->redraw();
     /* Re-run search if there's a query */
+    if (searchBar && searchBar->value()[0] != '\0')
+        search_cb(searchBar, resultsBrowser);
+}
+
+void soundcloud_toggle_cb(Fl_Widget* w, void* data) {
+    searchPlatform = 2;
+    settings.searchPlatform = 2;
+    save_settings();
+    if (ytToggleBtn) ytToggleBtn->color(Theme::HOVER);
+    if (twitchToggleBtn) twitchToggleBtn->color(Theme::HOVER);
+    if (soundcloudToggleBtn) soundcloudToggleBtn->color(Theme::ACCENT);
+    if (ytToggleBtn) ytToggleBtn->redraw();
+    if (twitchToggleBtn) twitchToggleBtn->redraw();
+    if (soundcloudToggleBtn) soundcloudToggleBtn->redraw();
     if (searchBar && searchBar->value()[0] != '\0')
         search_cb(searchBar, resultsBrowser);
 }
@@ -245,7 +272,11 @@ static void add_result_row(Fl_Browser* browser, const SearchResult& res) {
     } else if (res.is_playlist) {
         browser->add((std::string("@C255\xe2\x96\xb6\t") + res.title + "\t" + res.author).c_str());
     } else {
-        bool is_fav = PlaylistManager::is_favorite(res.video_id);
+        bool is_fav;
+        if (res.is_soundcloud)
+            is_fav = PlaylistManager::is_soundcloud_favorite(res.video_id);
+        else
+            is_fav = PlaylistManager::is_favorite(res.video_id);
         std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
         browser->add((star + "\t" + res.title + "\t" + res.author).c_str());
     }
@@ -305,6 +336,8 @@ void search_cb(Fl_Widget* w, void* data) {
         try {
             if (task->platform == 1)
                 task->results = TwitchClient::search(task->query, task->max_results);
+            else if (task->platform == 2)
+                task->results = SoundCloudClient::search(task->query, task->max_results);
             else
                 task->results = YoutubeService::search(task->query, task->region, task->filter_type, task->max_results);
         } catch (const std::exception& e) {
@@ -399,6 +432,8 @@ void load_more_search_results() {
         try {
             if (task->platform == 1)
                 task->results = TwitchClient::search(task->query, task->max_results);
+            else if (task->platform == 2)
+                task->results = SoundCloudClient::search(task->query, task->max_results);
             else
                 task->results = YoutubeService::search(task->query, task->region, task->filter_type, task->max_results);
         } catch (const std::exception& e) {
@@ -846,7 +881,13 @@ void download_cb(Fl_Widget* w, void* data) {
     std::string dlPath = settings.downloadPath;
     if (dlPath.empty()) dlPath = get_default_downloads_path();
     std::string filename = dlPath + NYN_PATH_SEP + safe_author + " - " + safe_title + ".mp3";
-    std::string url = "https://www.youtube.com/watch?v=" + video_id;
+    std::string url;
+    if (entry.is_soundcloud)
+        url = video_id;
+    else if (entry.is_twitch)
+        url = "https://www.twitch.tv/videos/" + video_id;
+    else
+        url = "https://www.youtube.com/watch?v=" + video_id;
     std::string cmd = std::string(YT_DLP) + " -x --audio-format mp3 --no-playlist -o \""
                       + filename + "\" \"" + url + "\"" + NYN_NULL_REDIRECT;
 

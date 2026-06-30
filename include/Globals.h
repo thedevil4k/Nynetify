@@ -22,6 +22,7 @@
 #include "Lang.h"
 #include "Theme.h"
 #include "YoutubeService.h"
+#include "SoundCloudClient.h"
 #include "PlaylistManager.h"
 #include "AppSettings.h"
 #include "ProgressSlider.h"
@@ -77,7 +78,8 @@ extern Fl_Input* searchBar;
 extern ModernChoice* searchFilter;
 extern ModernButton* ytToggleBtn;
 extern ModernButton* twitchToggleBtn;
-extern int searchPlatform; // 0 = YouTube, 1 = Twitch
+extern ModernButton* soundcloudToggleBtn;
+extern int searchPlatform; // 0 = YouTube, 1 = Twitch, 2 = SoundCloud
 extern Fl_Box* statusBar;
 extern Fl_Double_Window* eqWin;
 extern Fl_Double_Window* prefWin;
@@ -160,6 +162,7 @@ void load_more_search_results();
 void category_card_cb(Fl_Widget* w, void* data);
 void yt_toggle_cb(Fl_Widget* w, void* data);
 void twitch_toggle_cb(Fl_Widget* w, void* data);
+void soundcloud_toggle_cb(Fl_Widget* w, void* data);
 
 // View switching
 void show_home_view();

@@ -130,7 +130,8 @@ ModernButton* sidebarRadioBtn = nullptr;
 
 ModernButton* ytToggleBtn = nullptr;
 ModernButton* twitchToggleBtn = nullptr;
-int searchPlatform = 0; // 0 = YouTube, 1 = Twitch
+ModernButton* soundcloudToggleBtn = nullptr;
+int searchPlatform = 0; // 0 = YouTube, 1 = Twitch, 2 = SoundCloud
 
 /* ================================================================
  * main()
@@ -295,6 +296,7 @@ int main(int argc, char **argv) {
     /* Platform toggle buttons */
     Fl_PNG_Image* yt_logo_img = nullptr;
     Fl_PNG_Image* twitch_logo_img = nullptr;
+    Fl_PNG_Image* soundcloud_logo_img = nullptr;
     try {
         yt_logo_img = new Fl_PNG_Image(get_asset_path("yt.png").c_str());
         if (yt_logo_img->w() <= 0) { delete yt_logo_img; yt_logo_img = nullptr; }
@@ -303,6 +305,10 @@ int main(int argc, char **argv) {
         twitch_logo_img = new Fl_PNG_Image(get_asset_path("twitch.png").c_str());
         if (twitch_logo_img->w() <= 0) { delete twitch_logo_img; twitch_logo_img = nullptr; }
     } catch (...) { twitch_logo_img = nullptr; }
+    try {
+        soundcloud_logo_img = new Fl_PNG_Image(get_asset_path("Soundcloud.png").c_str());
+        if (soundcloud_logo_img->w() <= 0) { delete soundcloud_logo_img; soundcloud_logo_img = nullptr; }
+    } catch (...) { soundcloud_logo_img = nullptr; }
 
     ytToggleBtn = new ModernButton(220, 20, 42, 28, "YT");
     ytToggleBtn->labelsize(11);
@@ -318,15 +324,26 @@ int main(int argc, char **argv) {
     twitchToggleBtn->callback(twitch_toggle_cb);
     if (twitch_logo_img) twitchToggleBtn->set_image(twitch_logo_img);
 
+    soundcloudToggleBtn = new ModernButton(312, 20, 42, 28, "SC");
+    soundcloudToggleBtn->labelsize(11);
+    soundcloudToggleBtn->labelcolor(Theme::TEXT_PRIMARY);
+    soundcloudToggleBtn->color(Theme::HOVER);
+    soundcloudToggleBtn->callback(soundcloud_toggle_cb);
+    if (soundcloud_logo_img) soundcloudToggleBtn->set_image(soundcloud_logo_img);
+
     /* Restore persisted platform choice */
     load_settings();
     searchPlatform = settings.searchPlatform;
     if (searchPlatform == 1) {
         ytToggleBtn->color(Theme::HOVER);
         twitchToggleBtn->color(Theme::ACCENT);
+    } else if (searchPlatform == 2) {
+        ytToggleBtn->color(Theme::HOVER);
+        twitchToggleBtn->color(Theme::HOVER);
+        soundcloudToggleBtn->color(Theme::ACCENT);
     }
 
-    searchBar = new Fl_Input(318, 20, 322, 35);
+    searchBar = new Fl_Input(364, 20, 276, 35);
     searchBar->textcolor(Theme::TEXT_PRIMARY);
     searchBar->color(Theme::HOVER);
     searchBar->box(FL_RFLAT_BOX);

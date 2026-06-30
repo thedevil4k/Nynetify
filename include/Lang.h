@@ -26,6 +26,7 @@ struct Lang {
     const char* channels_filter;
     const char* yt_label;
     const char* twitch_label;
+    const char* soundcloud_label;
     const char* twitch_live;
     const char* twitch_category;
 
@@ -154,6 +155,7 @@ inline Lang LANG_EN = {
     "Channels",
     "YouTube",
     "Twitch",
+    "SoundCloud",
     "LIVE",
     "Category",
     // Playlist view
@@ -268,6 +270,7 @@ inline Lang LANG_ES = {
     "Canales",
     "YouTube",
     "Twitch",
+    "SoundCloud",
     "EN VIVO",
     "Categoria",
     // Playlist view
