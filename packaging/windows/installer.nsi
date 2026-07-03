@@ -52,6 +52,15 @@ Section "Nynetify" SEC_APP
     ; yt-dlp
     File /nonfatal "yt-dlp.exe"
 
+    ; App icon
+    File /nonfatal "Nynetify.ico"
+
+    ; Assets folder (logos, radio station data)
+    CreateDirectory "$INSTDIR\assets"
+    SetOutPath "$INSTDIR\assets"
+    File /r "assets\*.*"
+    SetOutPath "$INSTDIR"
+
     ; Create shortcuts
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\Nynetify.exe" "" "$INSTDIR\Nynetify.exe" 0
@@ -81,6 +90,12 @@ Section Uninstall
     Delete "$INSTDIR\Nynetify.exe"
     Delete "$INSTDIR\*.dll"
     Delete "$INSTDIR\yt-dlp.exe"
+    Delete "$INSTDIR\Nynetify.ico"
+    Delete "$INSTDIR\stations.json"
+
+    ; Remove assets folder
+    Delete "$INSTDIR\assets\*.*"
+    RMDir "$INSTDIR\assets"
 
     Delete "$INSTDIR\Uninstall.exe"
     RMDir "$INSTDIR"

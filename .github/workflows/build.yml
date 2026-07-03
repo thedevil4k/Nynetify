@@ -158,6 +158,10 @@ jobs:
         run: |
           mkdir -p package
           cp build/Nynetify.exe package/
+          # Bundle assets (logos, stations.json)
+          cp -r build/assets package/
+          cp build/Nynetify.ico package/
+          cp build/stations.json package/
           # Bundle yt-dlp.exe
           YT_DLP_SRC=$(python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))")
           if [ -f "$YT_DLP_SRC" ]; then
@@ -269,6 +273,10 @@ jobs:
         run: |
           mkdir -p package
           cp build/Nynetify.exe package/
+          # Bundle assets (logos, stations.json)
+          cp -r build/assets package/
+          cp build/Nynetify.ico package/
+          cp build/stations.json package/
           # Bundle yt-dlp.exe
           YT_DLP_SRC=$(python -c "import yt_dlp, os; print(os.path.join(os.path.dirname(yt_dlp.__file__), '__main__.exe'))")
           if [ -f "$YT_DLP_SRC" ]; then
