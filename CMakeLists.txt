@@ -13,12 +13,9 @@ if(WIN32)
     configure_file("${CMAKE_SOURCE_DIR}/assets/Nynetify.ico" "Nynetify.ico" COPYONLY)
 endif()
 
-# Copy asset files (logos) to build directory
+# Copy asset files (logos + station data) to build directory
 file(COPY "${CMAKE_SOURCE_DIR}/assets/" DESTINATION "${CMAKE_BINARY_DIR}/assets/"
-     FILES_MATCHING PATTERN "*.png" PATTERN "*.ico")
-
-# Copy stations.json to build directory
-configure_file("${CMAKE_SOURCE_DIR}/assets/stations.json" "stations.json" COPYONLY)
+     FILES_MATCHING PATTERN "*.png" PATTERN "*.ico" PATTERN "*.json")
 
 # ── Sources ────────────────────────────────────
 add_executable(Nynetify

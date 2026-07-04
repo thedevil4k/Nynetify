@@ -27,6 +27,16 @@
 #include "AssetPath.h"
 #include "Spawn.h"
 
+static std::string get_temp_path() {
+#ifdef _WIN32
+    char buf[MAX_PATH + 1] = {0};
+    GetTempPathA(MAX_PATH, buf);
+    return std::string(buf);
+#else
+    return "/tmp/";
+#endif
+}
+
 /* ================================================================
  * View-switching functions
  * ================================================================ */
@@ -296,7 +306,7 @@ void show_channel_view(const std::string& channel_id,
 
         std::string avatar_url = YoutubeService::get_channel_avatar_url(task->channel_id);
         if (!avatar_url.empty()) {
-            task->avatar_path = "cover_" + task->channel_id + ".jpg";
+            task->avatar_path = get_temp_path() + "cover_" + task->channel_id + ".jpg";
             std::string dl_cmd = "curl -s -L -o " + task->avatar_path + " \"" + avatar_url + "\"";
             run_hidden(dl_cmd, false, false);
         }
@@ -315,7 +325,7 @@ struct CoverArtTask {
 
 void cover_art_completed_cb(void* data) {
     auto* task = static_cast<CoverArtTask*>(data);
-    std::string temp_file = "cover_" + task->video_id + ".jpg";
+    std::string temp_file = get_temp_path() + "cover_" + task->video_id + ".jpg";
 
     if (std::filesystem::exists(temp_file)) {
         if (coverArtBox) {
@@ -346,7 +356,7 @@ void update_cover_art(const std::string& video_id) {
 
     auto* task = new CoverArtTask{video_id, YoutubeService::get_thumbnail_url(video_id)};
     std::thread([task]() {
-        std::string temp_file = "cover_" + task->video_id + ".jpg";
+        std::string temp_file = get_temp_path() + "cover_" + task->video_id + ".jpg";
         std::string cmd = "curl -s -L -o " + temp_file + " " + task->url;
         run_hidden(cmd, false, false);
         Fl::awake(cover_art_completed_cb, task);

@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <cctype>
 #include "RadioManager.h"
+#include "AssetPath.h"
 #include "Spawn.h"
 #include "nlohmann/json.hpp"
 
@@ -37,7 +38,7 @@ static std::string url_encode(const std::string& value) {
 #endif
 #endif
 
-static std::string stations_path() { return "stations.json"; }
+static std::string stations_path() { return get_asset_path("stations.json"); }
 static std::string favs_path()     { return "radio_favs.json"; }
 
 void RadioManager::init(const std::string& country_code) {
