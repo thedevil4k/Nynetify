@@ -118,6 +118,93 @@ jobs:
           compression-level: 0
 
   # ═══════════════════════════════════════════════
+  # Linux AppImage (portable on any distro)
+  # ═══════════════════════════════════════════════
+  linux-appimage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential pkg-config \
+            libfltk1.3-dev libmpv-dev libcurl4-openssl-dev mpv python3-pip wget file
+
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Prepare AppDir
+        run: |
+          set -e
+          mkdir -p AppDir/usr/bin AppDir/usr/lib
+          mkdir -p AppDir/usr/share/Nynetify/assets
+
+          cp build/Nynetify AppDir/usr/bin/
+          cp /usr/bin/mpv AppDir/usr/bin/
+          cp -r assets/* AppDir/usr/share/Nynetify/assets/
+
+          # yt-dlp
+          wget -q "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" \
+            -O AppDir/usr/bin/yt-dlp || true
+          chmod +x AppDir/usr/bin/yt-dlp
+
+          # Bundle non-system libs for Nynetify and mpv
+          for bin in build/Nynetify /usr/bin/mpv; do
+            ldd "$bin" | grep '=> /' | awk '{print $3}' | while read lib; do
+              case "$(basename "$lib")" in
+                linux-vdso*|ld-linux*|libc.so*|libm.so*|libdl.so*|librt.so*|libpthread*|libstdc++*|libgcc_s*)
+                  ;;
+                *)
+                  [ -f "$lib" ] && cp -L "$lib" AppDir/usr/lib/ || true
+                  ;;
+              esac
+            done
+          done
+
+          # AppRun
+          cat > AppDir/AppRun << 'SEOF'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "$0")")"
+          export PATH="$HERE/usr/bin:$PATH"
+          export LD_LIBRARY_PATH="$HERE/usr/lib:$LD_LIBRARY_PATH"
+          exec "$HERE/usr/bin/Nynetify" "$@"
+          SEOF
+          chmod +x AppDir/AppRun
+
+          # .desktop
+          cat > AppDir/nynetify.desktop << 'SEOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Nynetify
+          Exec=Nynetify
+          Icon=nynetify
+          Categories=AudioVideo;Audio;
+          Terminal=false
+          SEOF
+
+          # Icon (top-level for appimagetool)
+          cp assets/Nynetify.png AppDir/nynetify.png
+
+      - name: Build AppImage
+        run: |
+          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract
+          ./squashfs-root/AppRun --no-appstream AppDir Nynetify-1.0.0-x86_64.AppImage
+
+      - name: Verify AppImage
+        run: ls -lh Nynetify-*.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nynetify-appimage
+          path: Nynetify-*.AppImage
+          compression-level: 0
+
+  # ═══════════════════════════════════════════════
   # Windows x64 (portable ZIP + NSIS installer)
   # ═══════════════════════════════════════════════
   windows-x64:
