@@ -20,6 +20,7 @@ struct Lang {
 
     // Search
     const char* search_tooltip;
+    const char* searching;
     const char* everything;
     const char* songs_filter;
     const char* playlists_filter;
@@ -149,6 +150,7 @@ inline Lang LANG_EN = {
     "and fine-tune your frequencies using our build-in 10-band equalizer.",
     // Search
     "What do you want to listen to?",
+    "Searching",
     "Everything",
     "Songs",
     "Playlists",
@@ -264,6 +266,7 @@ inline Lang LANG_ES = {
     "y ajusta el sonido con el ecualizador integrado de 10 bandas.",
     // Search
     "Que quieres escuchar?",
+    "Buscando",
     "Todo",
     "Canciones",
     "Listas",

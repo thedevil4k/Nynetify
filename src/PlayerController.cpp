@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <sstream>
 #include <cstdlib>
+#include <thread>
 #include "PlayerController.h"
 #include "Globals.h"
 #include "ViewManager.h"
@@ -16,6 +17,68 @@
 /* ================================================================
  * Queue traversal
  * ================================================================ */
+
+static int play_resolve_sequence = 0;
+static std::string pre_resolved_url;
+static int pre_resolved_index = -1;
+
+/* ── Callback: URL resolved, now actually start playback ─ */
+void play_resolved_cb(void* data) {
+    auto* task = static_cast<PlayResolveTask*>(data);
+
+    /* Discard if stale or user changed track */
+    if (task->sequence != play_resolve_sequence ||
+        task->queue_index != current_queue_index) {
+        delete task;
+        return;
+    }
+
+    if (task->stream_url.empty()) {
+        std::cerr << "[ERROR] Could not resolve URL for: " << task->video_id << std::endl;
+        if (nowPlayingArtistBox) {
+            nowPlayingArtistBox->copy_label("\xe2\x9d\x8c URL failed");
+            nowPlayingArtistBox->redraw();
+        }
+        delete task;
+        return;
+    }
+
+    player->play(task->stream_url);
+    if (playBtn) playBtn->redraw();
+
+    /* ── Pre-resolve next track's URL in background (P3) ─ */
+    int next_idx = current_queue_index + 1;
+    if (next_idx >= (int)play_queue.size()) next_idx = 0;
+    if (next_idx != current_queue_index && !play_queue[next_idx].is_twitch) {
+        auto* next_task = new PlayResolveTask{
+            play_queue[next_idx].video_id,
+            play_queue[next_idx].title,
+            play_queue[next_idx].author,
+            play_queue[next_idx].is_twitch,
+            play_queue[next_idx].is_soundcloud,
+            play_queue[next_idx].is_live,
+            next_idx,
+            0  // no sequence check needed for pre-resolve
+        };
+        pre_resolved_index = next_idx;
+        std::thread([next_task]() {
+            if (next_task->is_soundcloud)
+                next_task->stream_url = SoundCloudClient::resolve_audio_url(next_task->video_id);
+            else
+                next_task->stream_url = YoutubeService::resolve_audio_url(next_task->video_id);
+            Fl::awake([](void* d) {
+                auto* t = static_cast<PlayResolveTask*>(d);
+                if (t->queue_index == pre_resolved_index && !t->stream_url.empty()) {
+                    pre_resolved_url = t->stream_url;
+                }
+                delete t;
+            }, next_task);
+        }).detach();
+    }
+
+    std::cout << "[UI] Playback started: " << task->title << std::endl;
+    delete task;
+}
 
 void play_index(int index) {
     if (index < 0 || index >= (int)play_queue.size()) return;
@@ -40,9 +103,7 @@ void play_index(int index) {
         nowPlayingBox->redraw();
     }
     if (nowPlayingArtistBox) {
-        std::string art = author;
-        if (art.size() > 28) art = art.substr(0, 25) + "...";
-        nowPlayingArtistBox->copy_label(art.c_str());
+        nowPlayingArtistBox->copy_label("\xe2\x8f\xb3 Loading...");
         nowPlayingArtistBox->redraw();
     }
 
@@ -59,35 +120,46 @@ void play_index(int index) {
     if (!play_queue[index].is_twitch && !play_queue[index].is_soundcloud)
         update_cover_art(video_id);
 
-    /* Start playback — pre-resolve URLs to avoid console flash from mpv's ytdl */
-    std::string stream_url;
-    if (play_queue[index].is_twitch) {
-        /* Twitch needs mpv's ytdl for HLS extraction */
+    /* ── Async URL resolution (was BLOCKING, now in background thread) ─ */
+    auto* task = new PlayResolveTask{
+        video_id, title, author,
+        play_queue[index].is_twitch,
+        play_queue[index].is_soundcloud,
+        play_queue[index].is_live,
+        index,
+        ++play_resolve_sequence
+    };
+
+    /* Check if next track was pre-resolved and matches */
+    if (index == pre_resolved_index && !pre_resolved_url.empty()) {
+        task->stream_url = pre_resolved_url;
+        pre_resolved_url.clear();
+        pre_resolved_index = -1;
+        player->set_ytdl(false);
+        /* Use Fl::awake to keep UI responsive even on instant result */
+        Fl::awake(play_resolved_cb, task);
+    } else if (play_queue[index].is_twitch) {
+        /* Twitch is instant (no yt-dlp resolve needed) */
+        task->stream_url = play_queue[index].is_live
+            ? "https://www.twitch.tv/" + video_id
+            : "https://www.twitch.tv/videos/" + video_id;
         player->set_ytdl(true);
-        if (play_queue[index].is_live)
-            stream_url = "https://www.twitch.tv/" + video_id;
-        else
-            stream_url = "https://www.twitch.tv/videos/" + video_id;
-    } else if (play_queue[index].is_soundcloud) {
-        /* SoundCloud: pre-resolve URL using yt-dlp, like YouTube */
-        player->set_ytdl(false);
-        stream_url = SoundCloudClient::resolve_audio_url(video_id);
-        if (stream_url.empty()) {
-            std::cerr << "[ERROR] Could not resolve SoundCloud URL: " << video_id << std::endl;
-        }
+        Fl::awake(play_resolved_cb, task);
     } else {
-        /* Pre-resolve YouTube URL using hidden yt-dlp, then play direct */
+        /* YouTube / SoundCloud: resolve in background */
         player->set_ytdl(false);
-        stream_url = YoutubeService::resolve_audio_url(video_id);
-        if (stream_url.empty()) {
-            std::cerr << "[ERROR] Could not resolve audio URL for: " << video_id << std::endl;
-        }
+        std::thread([task]() {
+            if (task->is_soundcloud)
+                task->stream_url = SoundCloudClient::resolve_audio_url(task->video_id);
+            else
+                task->stream_url = YoutubeService::resolve_audio_url(task->video_id);
+            Fl::awake(play_resolved_cb, task);
+        }).detach();
     }
-    if (!stream_url.empty()) {
-        player->play(stream_url);
-        if (playBtn) playBtn->redraw();
-    } else {
-        std::cerr << "[ERROR] Could not get stream URL" << std::endl;
+
+    if (statusBar) {
+        statusBar->copy_label("Resolving stream URL...");
+        statusBar->redraw();
     }
 }
 

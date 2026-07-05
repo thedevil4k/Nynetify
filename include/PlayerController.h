@@ -14,6 +14,21 @@
  * position / duration and auto-advances on EOF.
  */
 
+/* ── Async URL resolution for play_index ────────── */
+struct PlayResolveTask {
+    std::string video_id;
+    std::string title;
+    std::string author;
+    bool is_twitch = false;
+    bool is_soundcloud = false;
+    bool is_live = false;
+    int queue_index = -1;
+    int sequence = 0;
+    std::string stream_url;
+};
+
+void play_resolved_cb(void* data);
+
 /* Start playing track at the given queue index */
 void play_index(int index);
 

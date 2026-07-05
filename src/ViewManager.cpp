@@ -62,6 +62,30 @@ void show_search_view() {
     if (sidebarPlaylistList) sidebarPlaylistList->value(0);
 }
 
+/* ── Playlist & Favorites loading callback ──────── */
+void playlist_load_completed_cb(void* data) {
+    auto* task = static_cast<PlaylistLoadTask*>(data);
+    if (!resultsBrowser) { delete task; return; }
+
+    last_results = std::move(task->results);
+    resultsBrowser->clear();
+    if (last_results.empty()) {
+        resultsBrowser->add(task->is_favorites ? lang->no_favorites : lang->search_failed);
+    } else {
+        for (const auto& res : last_results) {
+            if (task->is_favorites) {
+                resultsBrowser->add((std::string("@C7\xe2\x98\x85\t") + res.title + "\t" + res.author).c_str());
+            } else {
+                bool is_fav = PlaylistManager::is_favorite(res.video_id);
+                std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
+                resultsBrowser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+            }
+        }
+    }
+    resultsBrowser->redraw();
+    delete task;
+}
+
 void show_playlist_view(const std::string& playlist_name) {
     homeGroup->hide();
     searchGroup->hide();
@@ -80,18 +104,16 @@ void show_playlist_view(const std::string& playlist_name) {
     current_category = "MY PLAYLISTS";
 
     resultsBrowser->clear();
-    std::vector<std::string> ids = PlaylistManager::get_playlist_songs(current_playlist);
-    if (ids.empty()) {
-        resultsBrowser->add(lang->search_failed);
-    } else {
-        last_results = YoutubeService::get_metadata(ids);
-        for (const auto& res : last_results) {
-            bool is_fav = PlaylistManager::is_favorite(res.video_id);
-            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-            resultsBrowser->add((star + "\t" + res.title + "\t" + res.author).c_str());
-        }
-    }
+    resultsBrowser->add("@C150\xe2\x8f\xb3 Loading playlist...");
     resultsBrowser->redraw();
+
+    /* Async fetch metadata in background */
+    auto* task = new PlaylistLoadTask{playlist_name, PlaylistManager::get_playlist_songs(current_playlist), {}, false};
+    std::thread([task]() {
+        if (!task->ids.empty())
+            task->results = YoutubeService::get_metadata(task->ids);
+        Fl::awake(playlist_load_completed_cb, task);
+    }).detach();
 }
 
 void show_favorites_view() {
@@ -112,20 +134,21 @@ void show_favorites_view() {
     current_category = "MY FAVORITES";
 
     resultsBrowser->clear();
-    auto favs = PlaylistManager::get_favorites();
-    std::vector<std::string> ids;
-    for (const auto& f : favs) {
-        if (!f.is_playlist) ids.push_back(f.value);
-    }
-    if (ids.empty()) {
-        resultsBrowser->add(lang->no_favorites);
-    } else {
-        last_results = YoutubeService::get_metadata(ids);
-        for (const auto& res : last_results) {
-            resultsBrowser->add((std::string("@C7\xe2\x98\x85\t") + res.title + "\t" + res.author).c_str());
-        }
-    }
+    resultsBrowser->add("@C150\xe2\x8f\xb3 Loading favorites...");
     resultsBrowser->redraw();
+
+    /* Async fetch metadata in background */
+    auto* task = new PlaylistLoadTask();
+    task->is_favorites = true;
+    auto favs = PlaylistManager::get_favorites();
+    for (const auto& f : favs) {
+        if (!f.is_playlist) task->ids.push_back(f.value);
+    }
+    std::thread([task]() {
+        if (!task->ids.empty())
+            task->results = YoutubeService::get_metadata(task->ids);
+        Fl::awake(playlist_load_completed_cb, task);
+    }).detach();
 }
 
 /* ── Radio view ──────────────────────────────────── */
@@ -180,7 +203,26 @@ void show_radio_view() {
     refresh_radio_browser();
 }
 
-/* ── YouTube playlist view ───────────────────────── */
+/* ── YouTube playlist view (async) ───────────────── */
+void yt_playlist_load_completed_cb(void* data) {
+    auto* task = static_cast<YTPlaylistLoadTask*>(data);
+    if (!resultsBrowser) { delete task; return; }
+
+    last_results = std::move(task->results);
+    resultsBrowser->clear();
+    if (last_results.empty()) {
+        resultsBrowser->add(lang->no_yt_tracks);
+    } else {
+        for (const auto& res : last_results) {
+            bool is_fav = PlaylistManager::is_favorite(res.video_id);
+            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
+            resultsBrowser->add((star + "\t" + res.title + "\t" + res.author).c_str());
+        }
+    }
+    resultsBrowser->redraw();
+    delete task;
+}
+
 void show_youtube_playlist_view(const std::string& playlist_id,
                                 const std::string& playlist_name,
                                 const std::string& uploader)
@@ -203,20 +245,13 @@ void show_youtube_playlist_view(const std::string& playlist_id,
     resultsBrowser->clear();
     resultsBrowser->add(lang->loading_yt_playlist);
     resultsBrowser->redraw();
-    Fl::check();
 
-    last_results = YoutubeService::get_playlist_videos(playlist_id);
-    resultsBrowser->clear();
-    if (last_results.empty()) {
-        resultsBrowser->add(lang->no_yt_tracks);
-    } else {
-        for (const auto& res : last_results) {
-            bool is_fav = PlaylistManager::is_favorite(res.video_id);
-            std::string star = is_fav ? "@C7\xe2\x98\x85" : "@C255\xe2\x98\x86";
-            resultsBrowser->add((star + "\t" + res.title + "\t" + res.author).c_str());
-        }
-    }
-    resultsBrowser->redraw();
+    /* Async fetch in background thread */
+    auto* task = new YTPlaylistLoadTask{playlist_id, playlist_name, uploader, {}};
+    std::thread([task]() {
+        task->results = YoutubeService::get_playlist_videos(task->playlist_id);
+        Fl::awake(yt_playlist_load_completed_cb, task);
+    }).detach();
 }
 
 /* ================================================================

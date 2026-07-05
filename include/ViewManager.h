@@ -46,6 +46,24 @@ struct ChannelLoadTask {
 };
 void channel_content_completed_cb(void* data);
 
+/* ── Playlist & Favorites loading (async) ───────── */
+struct PlaylistLoadTask {
+    std::string playlist_name;
+    std::vector<std::string> ids;
+    std::vector<SearchResult> results;
+    bool is_favorites = false;
+};
+void playlist_load_completed_cb(void* data);
+
+/* ── YouTube playlist loading (async) ───────────── */
+struct YTPlaylistLoadTask {
+    std::string playlist_id;
+    std::string playlist_name;
+    std::string uploader;
+    std::vector<SearchResult> results;
+};
+void yt_playlist_load_completed_cb(void* data);
+
 /* ── Region detection (async) ────────────────────── */
 void detect_region();
 void region_detected_cb(void* data);

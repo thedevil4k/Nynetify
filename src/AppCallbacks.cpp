@@ -214,7 +214,7 @@ void yt_toggle_cb(Fl_Widget* w, void* data) {
     if (ytToggleBtn)  ytToggleBtn->redraw();
     if (twitchToggleBtn) twitchToggleBtn->redraw();
     if (soundcloudToggleBtn) soundcloudToggleBtn->redraw();
-    /* Re-run search if there's a query */
+    /* Re-run search with debounce if there's a query */
     if (searchBar && searchBar->value()[0] != '\0')
         search_cb(searchBar, resultsBrowser);
 }
@@ -229,7 +229,7 @@ void twitch_toggle_cb(Fl_Widget* w, void* data) {
     if (ytToggleBtn)  ytToggleBtn->redraw();
     if (twitchToggleBtn) twitchToggleBtn->redraw();
     if (soundcloudToggleBtn) soundcloudToggleBtn->redraw();
-    /* Re-run search if there's a query */
+    /* Re-run search with debounce if there's a query */
     if (searchBar && searchBar->value()[0] != '\0')
         search_cb(searchBar, resultsBrowser);
 }
@@ -260,6 +260,58 @@ struct SearchTask {
 };
 
 static int search_sequence = 0;
+
+void search_completed_cb(void* data);
+
+/* ── Search debounce timer callback ─────────────── */
+static void debounced_search_cb(void* data) {
+    auto* input = static_cast<Fl_Input*>(data);
+    std::string query = input->value();
+    if (query.empty()) return;
+
+    current_category = "SEARCH";
+    current_playlist = "";
+
+    last_search_query  = query;
+    if (searchFilter) last_search_filter = searchFilter->value();
+
+    std::cout << "[UI] Searching for: " << query << "..." << std::endl;
+
+    /* Show immediate loading indicator */
+    if (resultsBrowser) {
+        resultsBrowser->clear();
+        resultsBrowser->add((std::string("@C150\xe2\x8f\xb3 ") + lang->searching + "...").c_str());
+        resultsBrowser->redraw();
+    }
+    if (statusBar) {
+        statusBar->copy_label("Searching...");
+        statusBar->redraw();
+    }
+
+    auto* task = new SearchTask();
+    task->query = query;
+    task->region = user_region;
+    task->filter_type = last_search_filter;
+    task->platform = searchPlatform;
+    task->max_results = settings.initialFetchSize;
+    task->sequence = ++search_sequence;
+
+    std::thread([task]() {
+        try {
+            if (task->platform == 1)
+                task->results = TwitchClient::search(task->query, task->max_results);
+            else if (task->platform == 2)
+                task->results = SoundCloudClient::search(task->query, task->max_results);
+            else
+                task->results = YoutubeService::search(task->query, task->region, task->filter_type, task->max_results);
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Search failed: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[ERROR] Search failed: unknown exception" << std::endl;
+        }
+        Fl::awake(search_completed_cb, task);
+    }).detach();
+}
 
 static void add_result_row(Fl_Browser* browser, const SearchResult& res) {
     if (res.is_channel) {
@@ -301,58 +353,38 @@ void search_completed_cb(void* data) {
         return;
     }
 
-    int to_show = std::min(2, (int)last_results.size());
+    /* Show first batch immediately (15 items or all if fewer) */
+    int to_show = std::min(15, (int)last_results.size());
     for (int i = 0; i < to_show; i++)
         add_result_row(browser, last_results[i]);
     total_loaded_results = to_show;
 
     if (total_loaded_results < (int)last_results.size())
-        Fl::add_timeout(0.05, progressive_fill_cb);
+        Fl::add_timeout(0.03, progressive_fill_cb);
     browser->redraw();
+
+    if (statusBar) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%zu results found", last_results.size());
+        statusBar->copy_label(buf);
+        statusBar->redraw();
+    }
 }
 
 void search_cb(Fl_Widget* w, void* data) {
-    current_category = "SEARCH";
-    current_playlist = "";
-    auto* input   = (Fl_Input*)w;
-
+    auto* input = (Fl_Input*)w;
     std::string query = input->value();
     if (query.empty()) return;
 
-    last_search_query  = query;
-    if (searchFilter) last_search_filter = searchFilter->value();
-
-    std::cout << "[UI] Searching for: " << query << "..." << std::endl;
-
-    auto* task = new SearchTask();
-    task->query = query;
-    task->region = user_region;
-    task->filter_type = last_search_filter;
-    task->platform = searchPlatform;
-    task->max_results = settings.initialFetchSize;
-    task->sequence = ++search_sequence;
-
-    std::thread([task]() {
-        try {
-            if (task->platform == 1)
-                task->results = TwitchClient::search(task->query, task->max_results);
-            else if (task->platform == 2)
-                task->results = SoundCloudClient::search(task->query, task->max_results);
-            else
-                task->results = YoutubeService::search(task->query, task->region, task->filter_type, task->max_results);
-        } catch (const std::exception& e) {
-            std::cerr << "[ERROR] Search failed: " << e.what() << std::endl;
-        } catch (...) {
-            std::cerr << "[ERROR] Search failed: unknown exception" << std::endl;
-        }
-        Fl::awake(search_completed_cb, task);
-    }).detach();
+    /* Debounce: cancel any pending search, wait 300ms */
+    Fl::remove_timeout(debounced_search_cb);
+    Fl::add_timeout(0.3, debounced_search_cb, input);
 }
 
 void progressive_fill_cb(void* data) {
     if (!resultsBrowser) return;
 
-    int batch = std::min(3, (int)last_results.size() - total_loaded_results);
+    int batch = std::min(15, (int)last_results.size() - total_loaded_results);
     auto* browser = resultsBrowser;
     for (int i = total_loaded_results; i < total_loaded_results + batch; i++)
         add_result_row(browser, last_results[i]);
@@ -373,7 +405,7 @@ void progressive_fill_cb(void* data) {
         }
         return;
     }
-    Fl::repeat_timeout(0.05, progressive_fill_cb);
+    Fl::repeat_timeout(0.03, progressive_fill_cb);
 }
 
 void load_more_completed_cb(void* data) {
@@ -450,7 +482,16 @@ void load_more_search_results() {
  * ================================================================ */
 void category_card_cb(Fl_Widget* w, void* data) {
     int idx = (int)(intptr_t)data;
+
+    /* Immediate visual feedback: flash the card accent */
+    Fl_Color original = w->color();
+    w->color(Theme::ACCENT);
+    w->redraw();
+    Fl::check();  // force immediate redraw
+
     if (idx == 5) {
+        w->color(original);
+        w->redraw();
         show_favorites_view();
     } else {
         show_search_view();
@@ -458,6 +499,12 @@ void category_card_cb(Fl_Widget* w, void* data) {
             searchBar->value(lang->card_cats[idx]);
             search_cb(searchBar, resultsBrowser);
         }
+        /* Restore original color after a short delay */
+        Fl::add_timeout(0.2, [](void* d) {
+            auto* btn = static_cast<Fl_Widget*>(d);
+            btn->color(Theme::CARD_BG);
+            btn->redraw();
+        }, (void*)w);
     }
 }
 
